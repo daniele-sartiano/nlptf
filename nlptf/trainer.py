@@ -8,6 +8,8 @@ class Trainer(object):
         self.reader = reader
         self.classifier = classifier
     
+
+class NerTrainer(Trainer):
     def train(self):
         x, y = self.reader.read()
         for i, sentence in enumerate(x):

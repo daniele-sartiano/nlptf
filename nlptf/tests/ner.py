@@ -2,28 +2,22 @@
 
 import unittest
 import sys
+import os
 
-from reader import IOBReader
-from trainer import Trainer
+from nlptf.reader import IOBReader
+from nlptf.trainer import NerTrainer
 
 class TestReader(unittest.TestCase):
-    
+
     def test_reader(self):
-        pass
-        #i = sys.stdin.readlines()
-        #reader = IOBReader(i)
-        #n_lines = 0
-        # for labels, sentence in reader.read():
-        #     for label, token in zip(labels, sentence):
-        #         n_lines += 1
-        
-        # c = len([el for el in i if el != '\n'])
-        
-        # self.assertEqual(c, n_lines)
+        filename = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'test_reader.iob')
+        reader = IOBReader(open(filename))
+        sentences, labels = reader.read()
+        self.assertEqual(len([token for sentence in sentences for token in sentence]), len(labels))
 
 
 class TestTrainer(unittest.TestCase):
     def test_trainer(self):
         reader = IOBReader(sys.stdin)
-        trainer = Trainer(reader, None)
+        trainer = NerTrainer(reader, None)
         trainer.train()

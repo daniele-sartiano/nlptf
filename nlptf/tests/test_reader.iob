@@ -1,0 +1,9 @@
+EU	NNP	B-ORG
+rejects	VBZ	O
+German	JJ	B-MISC
+call	NN	O
+to	TO	O
+boycott	VB	O
+British	JJ	B-MISC
+lamb	NN	O
+.	.	O
