@@ -6,6 +6,7 @@ import os
 
 from nlptf.reader import IOBReader
 from nlptf.trainer import NerTrainer
+from nlptf.models.linear import LinearClassifier
 
 class TestReader(unittest.TestCase):
 
@@ -17,7 +18,12 @@ class TestReader(unittest.TestCase):
 
 
 class TestTrainer(unittest.TestCase):
+
     def test_trainer(self):
         reader = IOBReader(sys.stdin)
-        trainer = NerTrainer(reader, None)
+        trainer = NerTrainer(reader, LinearClassifier())
         trainer.train()
+
+
+    def test_predic(self):
+        pass

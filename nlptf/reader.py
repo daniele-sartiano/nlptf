@@ -79,9 +79,8 @@ class IOBReader(Reader):
         #                               enumerate(Counter(itertools.chain(fields[field])).most_common())}
 
         # mapping sentences  #TODO: generalize for n fields
-        x = np.array(
-            [[[self.vocabulary['FORM'][w['FORM']], self.vocabulary['POS'][w['POS']]] for w in sentence] for sentence in
-             sentences])
+        x = [[[self.vocabulary['FORM'][w['FORM']], self.vocabulary['POS'][w['POS']]] for w in sentence] for sentence in
+             sentences]
 
         # mapping labels
         labels_set = set(labels)
@@ -96,4 +95,5 @@ class IOBReader(Reader):
 
         for i, label in enumerate(labels):
             y[i] = labels_idx[label]
+
         return [x, y]
