@@ -73,11 +73,6 @@ class IOBReader(Reader):
                 self.vocabulary[field] = {w: i for i, w in enumerate(
                     set([token[field] for sentence in sentences for token in sentence]))}
 
-
-        # for _, field, _ in self.format['fields']:
-        #     self.vocabulary[field] = {w[0]: i for i, w in
-        #                               enumerate(Counter(itertools.chain(fields[field])).most_common())}
-
         # mapping sentences  #TODO: generalize for n fields
         x = [[[self.vocabulary['FORM'][w['FORM']], self.vocabulary['POS'][w['POS']]] for w in sentence] for sentence in
              sentences]

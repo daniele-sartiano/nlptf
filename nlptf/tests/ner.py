@@ -17,13 +17,32 @@ class TestReader(unittest.TestCase):
         self.assertEqual(len([token for sentence in sentences for token in sentence]), len(labels))
 
 
-class TestTrainer(unittest.TestCase):
+class TestLinear(unittest.TestCase):
 
-    def test_trainer(self):
+    def test_train(self):
         reader = IOBReader(sys.stdin)
-        trainer = NerTrainer(reader, LinearClassifier())
-        trainer.train()
+        X, y = reader.read()
+        dataset = []
+        labels = []
+
+        for i, sentence in enumerate(X):
+            for ii, token in enumerate(sentence):
+                dataset.append(token)
+                labels.append(y[i+ii])
 
 
-    def test_predic(self):
-        pass
+        # splitting in train and dev
+        train_dataset = dataset[int(len(dataset)*0.3):]
+        train_labels = labels[int(len(labels)*0.3):]
+        dev_dataset = dataset[0:int(len(dataset)*0.3)]
+        dev_labels = labels[0:int(len(dataset)*0.3)]
+        
+        c = LinearClassifier()
+        path = c.train(train_dataset, train_labels,
+                       dev_dataset, dev_labels)
+
+
+    # def test_predict(self):
+    #     reader = IOBReader(sys.stdin)
+    #     trainer = NerTrainer(reader, LinearClassifier())
+    #     trainer.train()
