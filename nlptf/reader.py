@@ -27,7 +27,7 @@ class IOBReader(Reader):
         'label': (2, 'LABEL', str)
     }
 
-    def __init__(self, input, format=None, separator='\t', vocabulary=None):
+    def __init__(self, input, format=None, separator='\t', vocabulary=None, labels_idx=None):
         '''Construct an IOB Reader.
 
         :param input: The input file.
@@ -40,6 +40,7 @@ class IOBReader(Reader):
         self.format = format if format is not None else self.FORMAT
         self.separator = separator
         self.vocabulary = {} if vocabulary is None else vocabulary
+        self.labels_idx = {} if labels_idx is None else labels_idx
 
     def read(self):
         sentences = []
@@ -74,21 +75,21 @@ class IOBReader(Reader):
                     set([token[field] for sentence in sentences for token in sentence]))}
 
         # mapping sentences  #TODO: generalize for n fields
-        x = [[[self.vocabulary['FORM'][w['FORM']], self.vocabulary['POS'][w['POS']]] for w in sentence] for sentence in
+        X = [[[self.vocabulary['FORM'][w['FORM']], self.vocabulary['POS'][w['POS']]] for w in sentence] for sentence in
              sentences]
 
         # mapping labels
         labels_set = set(labels)
         len_labels_set = len(labels_set)
-        labels_idx = {}
 
-        for i, l in enumerate(labels_set):
-            labels_idx[l] = np.zeros(len_labels_set)
-            labels_idx[l][i] = 1
-
+        if not self.labels_idx:
+            for i, l in enumerate(labels_set):
+                self.labels_idx[l] = np.zeros(len_labels_set)
+                self.labels_idx[l][i] = 1
+        
         y = np.zeros((len(labels), len_labels_set))
 
         for i, label in enumerate(labels):
-            y[i] = labels_idx[label]
+            y[i] = self.labels_idx[label]
 
-        return [x, y]
+        return [X, y]
