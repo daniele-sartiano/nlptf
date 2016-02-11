@@ -21,7 +21,7 @@ class LinearClassifier(Classifier):
     def __init__(self):
 
         # Init variables
-        self.num_steps = 100001 #TODO: param
+        self.num_steps = 1001 #TODO: param
         self.batch_size = 128 #TODO: param
         self.num_feats = 2 #TODO: dynamic
         self.num_labels = 3 #TODO: dynamic
@@ -30,18 +30,23 @@ class LinearClassifier(Classifier):
         self.graph = tf.Graph()
         with self.graph.as_default():
 
-            self.X = tf.placeholder(tf.float32, shape=(self.batch_size, self.num_feats), name='trainset')
-            self.y = tf.placeholder(tf.float32, shape=(self.batch_size, self.num_labels), name='labels')
+            self.X = tf.placeholder(tf.float32, shape=(None, self.num_feats), name='trainset')
+            self.y = tf.placeholder(tf.float32, shape=(None, self.num_labels), name='labels')
+
+
             self.dev_X = tf.placeholder(tf.float32, name='devset')
 
-            self.predictions, self.loss = self.logistic_regression(self.X, self.y)
+            self.predictions, self.loss, self.logits = self.logistic_regression(self.X, self.y)
+
+            self.predict_labels = tf.argmax(self.logits, 1, name="predictions")
 
             self.dev_prediction = tf.nn.softmax(tf.matmul(self.dev_X, self.weights) + self.bias)
 
             # Optimizer.
             self.optimizer = tf.train.GradientDescentOptimizer(0.5).minimize(self.loss)
 
-            self.saver = tf.train.Saver(tf.all_variables())
+            #self.saver = tf.train.Saver(tf.all_variables())
+            self.saver = tf.train.Saver()
 
 
     def logistic_regression(self, X, y):
@@ -61,13 +66,14 @@ class LinearClassifier(Classifier):
                                                            name="xent_raw")
             loss = tf.reduce_mean(xent, name="xent")
             predictions = tf.nn.softmax(logits)
-            return predictions, loss
+            return predictions, loss, logits
 
 
     @property
     def weights_(self):
         """Returns weights of the linear classifier."""
         return self.get_tensor_value('logistic_regression/weights:0')
+
 
     @property
     def bias_(self):
@@ -79,6 +85,10 @@ class LinearClassifier(Classifier):
         path = self.saver.save(session, "model.ckpt")
         print 'Saved on %s' % path
         return path
+
+
+    def load(self, session):
+        self.saver.restore(session, 'model.ckpt')
 
 
     def train(self, X, y, dev_X, dev_y):
@@ -97,7 +107,6 @@ class LinearClassifier(Classifier):
                 offset = (step*self.batch_size) % (y.shape[0]- self.batch_size)
                 batch_X = X[offset:(offset + self.batch_size), :]
                 batch_y = y[offset:(offset + self.batch_size), :]
-
                 feed_dict = {self.X: batch_X, self.y: batch_y}
                 _, loss, predictions = session.run([self.optimizer, self.loss, self.predictions], feed_dict)
                 if step % 500 == 0:
@@ -108,6 +117,18 @@ class LinearClassifier(Classifier):
         
     
     def predict(self, X):
-        pass
+        X = np.array(X, dtype=float)
+        X = self.normalize(X)
+
+        with tf.Session(graph=self.graph) as session:
+            self.load(session)
+            y_hat = session.run(self.predict_labels, {self.X: X})
+            return y_hat
+            
+            # for step in xrange(self.num_steps):
+            #     offset = (step*self.batch_size) % (X.shape[0]- self.batch_size)
+            #     batch_X = X[offset:(offset + self.batch_size), :]
+            #     y_hat = session.run([self.predict_labels], {self.X: batch_X})
+            #     yield y_hat
 
 
