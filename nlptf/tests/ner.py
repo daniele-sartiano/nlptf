@@ -15,67 +15,59 @@ class TestReader(unittest.TestCase):
     def test_reader(self):
         filename = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'test_reader.iob')
         reader = IOBReader(open(filename))
-        sentences, labels = reader.read()
-        self.assertEqual(len([token for sentence in sentences for token in sentence]), len(labels))
 
+        reader = IOBReader(sys.stdin)
+        
+        sentences, labels = reader.read()
+        self.assertEqual(len(sentences), len(labels))
 
 class TestLinear(unittest.TestCase):
 
     def test_train(self):
-        reader = IOBReader(sys.stdin)
+        f = {
+            'fields': [
+                {'position': 0, 'name': 'FORM', 'type': str},
+                {'position': 2, 'name': 'LABEL', 'type': str}
+            ]
+        }
+
+        reader = IOBReader(sys.stdin, separator='\t', format=f)
         X, y = reader.read()
 
-        pickle.dump([reader.vocabulary, reader.labels_idx], open('reader.pkl', 'wb'))
+        pickle.dump(reader.dump(), open('reader.pkl', 'wb'))
                 
         dataset = []
         labels = []
 
-        for i, sentence in enumerate(X):
-            for ii, token in enumerate(sentence):
-                dataset.append(token)
-                labels.append(y[i+ii])
-
-
         # splitting in train and dev
-        train_dataset = dataset[int(len(dataset)*0.3):]
-        train_labels = labels[int(len(labels)*0.3):]
-        dev_dataset = dataset[0:int(len(dataset)*0.3)]
-        dev_labels = labels[0:int(len(dataset)*0.3)]
+        train_dataset = X[int(len(X)*0.3):]
+        train_labels = y[int(len(X)*0.3):]
+        dev_dataset = X[0:int(len(X)*0.3)]
+        dev_labels = y[0:int(len(X)*0.3)]
         
-        c = LinearClassifier()
-        path = c.train(train_dataset, train_labels,
-                       dev_dataset, dev_labels)
-        
+        c = LinearClassifier(num_feats=5, n_labels=len(reader.vocabulary['LABEL']))
+        path = c.train(train_dataset, train_labels, dev_dataset, dev_labels)
+        print 'saved in %s' % path
 
     def test_predict(self):
-        vocab, labels_idx = pickle.load(open('reader.pkl'))
-        
         lines = sys.stdin.readlines()
 
-        reader = IOBReader(lines, vocabulary=vocab, labels_idx=labels_idx)
+        reader = IOBReader(lines)
+        reader.load(pickle.load(open('reader.pkl')))
+        
         X, _ = reader.read()
 
-        dataset = []
+        c = LinearClassifier(num_feats=5, n_labels=len(reader.vocabulary['LABEL']))
+        predicted = c.predict(X)
+        #self.assertEqual(len(dataset), len(predicted))
 
-        for i, sentence in enumerate(X):
-            for ii, token in enumerate(sentence):
-                dataset.append(token)
-        
-        c = LinearClassifier()
-        predicted = c.predict(dataset)
-        self.assertEqual(len(dataset), len(predicted))
-
-        labels_list = [None]* len(labels_idx)
-        for k, v in labels_idx.items():
-            labels_list[np.argmax([v], 1)[0]] = k
-
-        print labels_list
+        labels_idx_rev = {v:k for k,v in reader.vocabulary['LABEL'].items()}
 
         i = 0
         for line in lines:
             line = line.strip()
-            if line:                
-                print '%s\t%s' % (line.split('\t')[0], labels_list[predicted[i]])
+            if line:
+                print '%s\t%s\t%s' % (line.split()[0], line.split()[1], labels_idx_rev[predicted[i]])
                 i += 1
             else:
                 print

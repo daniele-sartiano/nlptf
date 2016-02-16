@@ -18,16 +18,30 @@ class Reader(object):
         raise NotImplementedError()
 
 
-class IOBReader(Reader):
+class SentenceReader(Reader):
+    @staticmethod
+    def extractWindow(sentence, window):
+        lpadded = window/2 * [-1] + list(sentence) + window/2 * [-1]
+        return [lpadded[i:i+window] for i in range(len(sentence))] 
+
+    @staticmethod
+    def batch(sentence, size):
+        out  = [sentence[:i] for i in xrange(1, min(size,len(sentence)+1) )]
+        out += [sentence[i-size:i] for i in xrange(size,len(sentence)+1) ]
+        return out
+
+    
+            
+class IOBReader(SentenceReader):
     FORMAT = {
         'fields': [
-            (0, 'FORM', str),
-            (1, 'POS', str)
-        ],
-        'label': (2, 'LABEL', str)
+            {'position': 0, 'name': 'FORM', 'type': str},
+            {'position': 1, 'name': 'POS', 'type': str},
+            {'position': 2, 'name': 'LABEL', 'type': str}
+        ]
     }
 
-    def __init__(self, input, format=None, separator='\t', vocabulary=None, labels_idx=None):
+    def __init__(self, input, format=None, separator='\t', vocabulary=None):
         '''Construct an IOB Reader.
 
         :param input: The input file.
@@ -40,9 +54,67 @@ class IOBReader(Reader):
         self.format = format if format is not None else self.FORMAT
         self.separator = separator
         self.vocabulary = {} if vocabulary is None else vocabulary
-        self.labels_idx = {} if labels_idx is None else labels_idx
+
+    def dump(self):
+        return [self.format, self.separator, self.vocabulary]
+
+    
+    def load(self, params):
+        self.format, self.separator, self.vocabulary = params
+
 
     def read(self):
+        sentence = []
+        sentences = []
+        labels = []
+
+        vocabulary = {field['name']: {} for field in self.format['fields']}
+
+        for line in self.input:
+            line = line.strip()
+            if line:
+                elements = line.split(self.separator)
+                n_elements = len(elements)
+                token = {}
+                for field in self.format['fields']:
+                    value = field['type'](elements[field['position']])
+                    token[field['name']] = value
+                    if value not in vocabulary[field['name']]:
+                        vocabulary[field['name']][value] = len(vocabulary[field['name']])
+                sentence.append(token)
+            else:
+                sentences.append(sentence)
+                sentence = []
+        if sentence:
+            sentences.append(sentence)
+            sentence = []
+        
+        if not self.vocabulary:
+            for field in self.format['fields']:
+                if field['name'] != 'LABEL':
+                    vocabulary[field['name']]['UNK'] = len(vocabulary[field['name']])
+                    vocabulary[field['name']]['PAD'] = -1
+            self.vocabulary = vocabulary
+        
+        # Mapping Sentence
+        X = []
+        y = []
+        for sentence in sentences:
+            # TODO: using only form
+            tokens_x = []
+            tokens_y = []
+            for token in sentence:
+                tokens_x.append(self.vocabulary['FORM'][token['FORM']] if token['FORM'] in self.vocabulary['FORM'] else self.vocabulary['FORM']['UNK'])
+                tokens_y.append((np.arange(len(self.vocabulary['LABEL'])) == self.vocabulary['LABEL'][token['LABEL']]).astype(np.float32))
+
+            
+            X.append(np.array(tokens_x, dtype=np.float32)/(len(self.vocabulary['FORM'])-1))
+            y.append(np.array(tokens_y, dtype=np.float32))
+
+        return X, y
+
+                
+    def read_old(self):
         sentences = []
         labels = []
         sentence = []
@@ -75,21 +147,26 @@ class IOBReader(Reader):
                     set([token[field] for sentence in sentences for token in sentence]))}
 
         # mapping sentences  #TODO: generalize for n fields
-        X = [[[self.vocabulary['FORM'][w['FORM']], self.vocabulary['POS'][w['POS']]] for w in sentence] for sentence in
-             sentences]
+        X = [[[self.vocabulary['FORM'][w['FORM']], self.vocabulary['POS'][w['POS']]] for w in sentence] for sentence in sentences]
 
         # mapping labels
-        labels_set = set(labels)
-        len_labels_set = len(labels_set)
+        self.labels_idx = {l:i for i, l in enumerate(set(labels))}
 
-        if not self.labels_idx:
-            for i, l in enumerate(labels_set):
-                self.labels_idx[l] = np.zeros(len_labels_set)
-                self.labels_idx[l][i] = 1
-        
-        y = np.zeros((len(labels), len_labels_set))
-
+        y = np.zeros((len(labels), len(self.labels_idx)))
         for i, label in enumerate(labels):
-            y[i] = self.labels_idx[label]
+            y[i] = (np.arange(y.shape[1]) == self.labels_idx[label]).astype(np.float32)
+        
+
+        # len_labels_set = len(labels_set)
+
+        # if not self.labels_idx:
+        #     for i, l in enumerate(labels_set):
+        #         self.labels_idx[l] = np.zeros(len_labels_set)
+        #         self.labels_idx[l][i] = 1
+        
+        # y = np.zeros((len(labels), len_labels_set))
+
+        # for i, label in enumerate(labels):
+        #     y[i] = self.labels_idx[label]
 
         return [X, y]
