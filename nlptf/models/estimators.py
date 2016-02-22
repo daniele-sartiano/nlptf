@@ -3,7 +3,7 @@
 import tensorflow as tf
 import numpy as np
 
-class Classifier(object):
+class Estimator(object):
 
     @staticmethod
     def normalize(X):
@@ -27,9 +27,20 @@ class Classifier(object):
         out  = [sentence[:i] for i in xrange(1, min(size,len(sentence)+1) )]
         out += [sentence[i-size:i] for i in xrange(size,len(sentence)+1) ]
         return out
+
+
+    def save(self, session):
+        path = self.saver.save(session, self.name_model)
+        print 'Saved on %s' % path
+        return path
+
+
+    def load(self, session):
+        self.saver.restore(session, self.name_model)
+
         
 
-class LinearClassifier(Classifier):
+class LinearEstimator(Estimator):
 
     def __init__(self, num_feats=2, n_labels=3):
 
@@ -85,28 +96,6 @@ class LinearClassifier(Classifier):
             return predictions, loss, logits
 
 
-    @property
-    def weights_(self):
-        """Returns weights of the linear classifier."""
-        return self.get_tensor_value('logistic_regression/weights:0')
-
-
-    @property
-    def bias_(self):
-        """Returns weights of the linear classifier."""
-        return self.get_tensor_value('logistic_regression/bias:0')
-
-
-    def save(self, session):
-        path = self.saver.save(session, "model.ckpt")
-        print 'Saved on %s' % path
-        return path
-
-
-    def load(self, session):
-        self.saver.restore(session, self.name_model)
-
-
     def train(self, X, y, dev_X, dev_y):
 
         with tf.Session(graph=self.graph) as session:
@@ -145,64 +134,4 @@ class LinearClassifier(Classifier):
             return y_hat
             
 
-
-    def train_old(self, X, y, dev_X, dev_y):
-
-        # X = np.array(X, dtype=float)
-        # y = np.array(y)
-
-        # dev_X = np.array(dev_X, dtype=float)
-        # dev_y = np.array(dev_y)
-
-        print X[0]
-        X = self.normalize(X)
-        print X[0]
-        dev_X = self.normalize(dev_X)
-
-        # # Debug data
-        # def reformat(dataset, labels):
-        #     dataset = dataset.reshape((-1, 28 * 28)).astype(np.float32)
-        #     # Map 0 to [1.0, 0.0, 0.0 ...], 1 to [0.0, 1.0, 0.0 ...]
-        #     labels = (np.arange(10) == labels[:,None]).astype(np.float32)
-        #     return dataset, labels
-
-        # import cPickle as pickle
-        # with open('/project/piqasso/Experiments/NegationAndSpeculation/scope/deepnl_experiments/tensorflow/notMNIST.pickle', 'rb') as f:
-        #     save = pickle.load(f)
-        #     train_dataset = save['train_dataset']
-        #     train_labels = save['train_labels']
-        #     valid_dataset = save['valid_dataset']
-        #     valid_labels = save['valid_labels']
-        #     test_dataset = save['test_dataset']
-        #     test_labels = save['test_labels']
-        #     del save  # hint to help gc free up memory
-
-        # X, y = reformat(train_dataset, train_labels)
-        # dev_X, dev_y = reformat(valid_dataset, valid_labels)
-
-        # # End Debug data
-        
-        with tf.Session(graph=self.graph) as session:
-            session.run(tf.initialize_all_variables())
-            
-            for step in xrange(self.epochs):
-                offset = (step*self.batch_size) % (y.shape[0]- self.batch_size)
-                batch_X = X[offset:(offset + self.batch_size), :]
-                batch_y = y[offset:(offset + self.batch_size), :]
-                feed_dict = {self.X: batch_X, self.y: batch_y}
-                _, loss, predictions = session.run([self.optimizer, self.loss, self.predictions], feed_dict)
-                if step % 50 == 0:
-                    print 'step', step, 'loss %f' % loss
-                    print 'accuracy %f' % self.accuracy(predictions, batch_y)
-                    pred_y = self.dev_prediction.eval({self.dev_X: dev_X})
-                    # print pred_y[0:10]
-                    # print 'vs'
-                    # print dev_y[0:10]
-                    print(np.argmax(pred_y, 1)[0:10])
-                    print(np.argmax(dev_y, 1)[0:10])
-                    print dev_y[0:10]
-
-                    print self.accuracy(pred_y, dev_y)
-            
-            return self.save(session)
 

@@ -38,10 +38,15 @@ class IOBReader(SentenceReader):
             {'position': 0, 'name': 'FORM', 'type': str},
             {'position': 1, 'name': 'POS', 'type': str},
             {'position': 2, 'name': 'LABEL', 'type': str}
-        ]
+        ],
+        'gazetter': {
+            'value': {'position': 0, 'name': 'FORM', 'type': str}, 
+            'type': {'position': 2, 'name': 'LABEL', 'type': str}
+        }
     }
 
-    def __init__(self, input, format=None, separator='\t', vocabulary=None):
+
+    def __init__(self, input, format=None, separator='\t', vocabulary=None, gazetter=None):
         '''Construct an IOB Reader.
 
         :param input: The input file.
@@ -52,8 +57,14 @@ class IOBReader(SentenceReader):
         '''
         super(IOBReader, self).__init__(input)
         self.format = format if format is not None else self.FORMAT
+
+        self.field2pos = {}
+        for field in self.format['fields']:
+            self.field2pos[field['name']] = field['position']
+
         self.separator = separator
         self.vocabulary = {} if vocabulary is None else vocabulary
+
 
     def dump(self):
         return [self.format, self.separator, self.vocabulary]
@@ -63,12 +74,66 @@ class IOBReader(SentenceReader):
         self.format, self.separator, self.vocabulary = params
 
 
+    def getPosition(self, fieldName):
+        return self.field2pos[fieldName]
+            
+
     def read(self):
         sentence = []
         sentences = []
-        labels = []
+        vocabulary = {field['position']: {} for field in self.format['fields']}
+
+        for line in self.input:
+            line = line.strip()
+            if line:
+                elements = line.split(self.separator)
+                n_elements = len(elements)
+                token = {}
+                for field in self.format['fields']:
+                    value = field['type'](elements[field['position']])
+                    token[field['position']] = value
+                    if value not in vocabulary[field['position']]:
+                        vocabulary[field['position']][value] = len(vocabulary[field['position']])
+
+                sentence.append(token)
+                
+            else:
+                sentences.append(sentence)
+                sentence = []
+
+        if sentence:
+            sentences.append(sentence)
+            sentence = []
+
+        if not self.vocabulary:
+            for field in self.format['fields']:
+                if field['name'] != 'LABEL':
+                    vocabulary[field['position']]['UNK'] = len(vocabulary[field['position']])
+            self.vocabulary = vocabulary
+
+        # Mapping Sentence
+        X = []
+        y = []
+        for sentence in sentences:
+            tokens_x = []
+            tokens_y = []
+            for token in sentence:
+                field_sorted = sorted(self.format['fields'], key=lambda x: x['position'])
+                v = [token[f['position']] for f in field_sorted if f['name'] != 'LABEL']
+
+                tokens_x.append(v)
+                tokens_y.append(token[self.getPosition('LABEL')])
+            X.append(tokens_x)
+            y.append(tokens_y)
+        return X, y
+
+
+    def read_old2(self):
+        sentence = []
+        sentences = []
 
         vocabulary = {field['name']: {} for field in self.format['fields']}
+        gazetter = {}
 
         for line in self.input:
             line = line.strip()
@@ -81,21 +146,36 @@ class IOBReader(SentenceReader):
                     token[field['name']] = value
                     if value not in vocabulary[field['name']]:
                         vocabulary[field['name']][value] = len(vocabulary[field['name']])
+
+                gaz_t_pos = self.format['gazetter']['type']['position']
+                gaz_t_type = self.format['gazetter']['type']['type']
+                gaz_v_pos = self.format['gazetter']['value']['position']
+                gaz_v_type = self.format['gazetter']['value']['type']
+                if gaz_t_type(elements[gaz_t_pos]) not in gazetter:
+                    gazetter[gaz_t_type(elements[gaz_t_pos])] = set()
+                gazetter[gaz_t_type(elements[gaz_t_pos])].add(gaz_v_type(elements[gaz_v_pos]))
+
                 sentence.append(token)
+                
             else:
                 sentences.append(sentence)
                 sentence = []
         if sentence:
             sentences.append(sentence)
             sentence = []
-        
+
+        for k in gazetter:
+            print k, gazetter[k]
+
         if not self.vocabulary:
             for field in self.format['fields']:
                 if field['name'] != 'LABEL':
                     vocabulary[field['name']]['UNK'] = len(vocabulary[field['name']])
                     vocabulary[field['name']]['PAD'] = -1
             self.vocabulary = vocabulary
-        
+        if not self.gazetter:
+            self.gazetter = gazetter #todo the reverse
+            
         # Mapping Sentence
         X = []
         y = []
@@ -103,12 +183,21 @@ class IOBReader(SentenceReader):
             # TODO: using only form
             tokens_x = []
             tokens_y = []
-            for token in sentence:
-                tokens_x.append(self.vocabulary['FORM'][token['FORM']] if token['FORM'] in self.vocabulary['FORM'] else self.vocabulary['FORM']['UNK'])
-                tokens_y.append((np.arange(len(self.vocabulary['LABEL'])) == self.vocabulary['LABEL'][token['LABEL']]).astype(np.float32))
 
+            for token in sentence:
+                form = self.vocabulary['FORM'][token['FORM']] if token['FORM'] in self.vocabulary['FORM'] else self.vocabulary['FORM']['UNK']
+                form /= float(len(self.vocabulary['FORM'])-1)
+
+                pos = self.vocabulary['POS'][token['POS']] if token['POS'] in self.vocabulary['POS'] else self.vocabulary['POS']['UNK']
+                pos /= float(len(self.vocabulary['POS'])-1)
+
+                
+                
+                tokens_x.append(np.array([form, pos]))
+                tokens_y.append((np.arange(len(self.vocabulary['LABEL'])) == self.vocabulary['LABEL'][token['LABEL']]).astype(np.float32))
             
-            X.append(np.array(tokens_x, dtype=np.float32)/(len(self.vocabulary['FORM'])-1))
+            #X.append(np.array(tokens_x, dtype=np.float32)/(len(self.vocabulary['FORM'])-1))
+            X.append(np.array(tokens_x, dtype=np.float32))
             y.append(np.array(tokens_y, dtype=np.float32))
 
         return X, y
