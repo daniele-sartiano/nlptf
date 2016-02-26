@@ -42,23 +42,20 @@ class Estimator(object):
 
 class LinearEstimator(Estimator):
 
-    def __init__(self, num_feats=2, n_labels=3):
-
-        # TODO params
-        self.epochs = 25 
+    
+    def __init__(self, epochs, num_labels, learning_rate, window_size, num_feats, name_model):
+        self.epochs = epochs 
         self.num_feats = num_feats
-        self.num_labels = n_labels
-        self.learning_rate = 0.01
-        self.window = 5
-        self.name_model = 'model.ckpt'
-
-        #self.batch_size = 128
+        self.num_labels = num_labels
+        self.learning_rate = learning_rate
+        self.window_size = window_size
+        self.name_model = name_model
 
         # define the graph
         self.graph = tf.Graph()
         with self.graph.as_default():
 
-            self.X = tf.placeholder(tf.float32, shape=(None, self.num_feats), name='trainset')
+            self.X = tf.placeholder(tf.float32, shape=(None, self.num_feats*self.window_size), name='trainset')
             self.y = tf.placeholder(tf.float32, shape=(None, self.num_labels), name='labels')
 
             self.dev_X = tf.placeholder(tf.float32, name='devset')
@@ -102,7 +99,7 @@ class LinearEstimator(Estimator):
             session.run(tf.initialize_all_variables())
             for step in xrange(self.epochs):
                 for i in xrange(len(X)):
-                    cwords = self.extractWindow(X[i], self.window)
+                    cwords = self.extractWindow(X[i], self.window_size)
                     feed_dict = {self.X: cwords, self.y: y[i]}
 
                     _, loss, predictions = session.run([self.optimizer, self.loss, self.predictions], feed_dict)
@@ -114,7 +111,7 @@ class LinearEstimator(Estimator):
                 cwords_dev = []
                 labels_dev = []
                 for i in xrange(len(dev_X)):
-                    cwords_dev += self.extractWindow(dev_X[i], self.window)
+                    cwords_dev += self.extractWindow(dev_X[i], self.window_size)
                     labels_dev += list(dev_y[i])
                 pred_y = self.dev_prediction.eval({self.dev_X: cwords_dev})
                 
@@ -128,7 +125,7 @@ class LinearEstimator(Estimator):
         with tf.Session(graph=self.graph) as session:
             self.load(session)
             for i in xrange(len(X)):
-                cwords += self.extractWindow(X[i], self.window)
+                cwords += self.extractWindow(X[i], self.window_size)
 
             y_hat = session.run(self.predict_labels, {self.X: cwords})
             return y_hat

@@ -42,7 +42,9 @@ class TestLinear(unittest.TestCase):
             FieldExtractor(reader.getPosition('POS')),
             CapitalExtractor(reader.getPosition('FORM')), 
         ]
-        classifier = Classifier(reader, extractors, LinearEstimator)
+
+        params = {'epochs':25, 'learning_rate':0.01, 'window_size':5, 'name_model':'model.ckpt'}
+        classifier = Classifier(reader, extractors, LinearEstimator, **params)
         classifier.train()
 
 
@@ -56,7 +58,8 @@ class TestLinear(unittest.TestCase):
             CapitalExtractor(reader.getPosition('FORM')), 
         ]
 
-        classifier = Classifier(reader, extractors, LinearEstimator)
+        params = {'epochs':25, 'learning_rate':0.01, 'window_size':5, 'name_model':'model.ckpt'}
+        classifier = Classifier(reader, extractors, LinearEstimator, **params)
         
         predicted = classifier.predict()
         #self.assertEqual(len(dataset), len(predicted))

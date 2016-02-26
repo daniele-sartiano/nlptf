@@ -109,6 +109,8 @@ class IOBReader(SentenceReader):
             for field in self.format['fields']:
                 if field['name'] != 'LABEL':
                     vocabulary[field['position']]['UNK'] = len(vocabulary[field['position']])
+                    vocabulary[field['position']]['<PAD>'] = len(vocabulary[field['position']])
+
             self.vocabulary = vocabulary
 
         # Mapping Sentence
