@@ -7,7 +7,7 @@ import os
 import numpy as np
 import cPickle as pickle
 
-from nlptf.reader import IOBReader
+from nlptf.reader import IOBReader, Word2VecReader
 from nlptf.models.estimators import LinearEstimator
 from nlptf.classifier.classifier import Classifier
 from nlptf.extractors import FieldExtractor, CapitalExtractor
@@ -23,6 +23,13 @@ class TestReader(unittest.TestCase):
         
         sentences, labels = reader.read()
         self.assertEqual(len(sentences), len(labels))
+
+    def test_we_reader(self):
+        reader = Word2VecReader(sys.stdin)
+        we = reader.read()
+        assert we.embeddings_len == len(we.embeddings)
+        assert we.embeddings_size == len(we.embeddings[0])
+        assert len(we.vocabulary) == we.embeddings_len
 
 
 class TestLinear(unittest.TestCase):
@@ -43,8 +50,9 @@ class TestLinear(unittest.TestCase):
             CapitalExtractor(reader.getPosition('FORM')), 
         ]
 
-        params = {'epochs':25, 'learning_rate':0.01, 'window_size':5, 'name_model':'model.ckpt'}
+        params = {'epochs':25, 'learning_rate':0.01, 'window_size':5, 'name_model':'model.ckpt', 'word_embeddings_file': 'data/vectors.txt'}
         classifier = Classifier(reader, extractors, LinearEstimator, **params)
+        return
         classifier.train()
 
 

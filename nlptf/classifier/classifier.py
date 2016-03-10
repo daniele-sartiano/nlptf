@@ -3,9 +3,35 @@
 import cPickle as pickle
 
 from nlptf.extractors import LabelExtractor
+import numpy as np
+
+def read_word_embeddings(word_embeddings_file):
+    embeddings = []
+    vocab = {}
+    embeddings_len = -1
+    embeddings_size = -1
+    with open(word_embeddings_file) as f:
+        header = True
+        for line in f:
+            line = line.strip()
+            if header:
+                header = False
+                embeddings_len, embeddings_size = [int(el) for el in line.split()]
+                continue
+            splitted = line.split()
+            word, vector = splitted[0], [float(n) for n in splitted[1:]]
+
+            embeddings.append(vector)
+            vocab[word] = len(embeddings)-1
+
+    assert embeddings_len == len(embeddings)
+    assert embeddings_size == len(embeddings[0])
+    assert len(vocab) == embeddings_len
+
+    return embeddings, vocab
 
 class Classifier(object):
-    def __init__(self, reader, extractors, estimator, epochs, learning_rate, window_size, name_model):
+    def __init__(self, reader, extractors, estimator, epochs, learning_rate, window_size, name_model, word_embeddings_file=None):
         self.reader = reader
         self.extractors = extractors
         self.estimator = estimator
@@ -17,6 +43,9 @@ class Classifier(object):
         self.window_size = window_size
         self.name_model = name_model
     
+        if word_embeddings_file is not None:
+            self.vectors, self.vectors_vocab = Word2VecReader(word_embeddings_file).read()
+            
 
     def predict(self):
         self.reader.load(pickle.load(open('reader.pkl')))
@@ -60,7 +89,7 @@ class Classifier(object):
         dev_dataset = X[0:int(len(X)*0.3)]
         dev_labels = y[0:int(len(X)*0.3)]
         
-
+        
         self.estimator = self.estimator(
             epochs = self.epochs,
             num_labels = len(self.reader.vocabulary[self.reader.getPosition('LABEL')]),

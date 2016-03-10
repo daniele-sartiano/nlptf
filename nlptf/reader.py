@@ -5,6 +5,7 @@ import itertools
 
 from collections import Counter
 
+from wordembeddings import WordEmbedding
 
 class Reader(object):
     """
@@ -16,6 +17,37 @@ class Reader(object):
 
     def read(self):
         raise NotImplementedError()
+
+
+class WordEmbeddingReader(Reader):
+    def __init__(self, input):
+        super(WordEmbeddingReader, self).__init__(input)
+        self.wordembedding = None
+
+
+class Word2VecReader(WordEmbeddingReader):
+    def read(self):
+        embeddings_len = -1
+        embeddings_size = -1
+
+        vocabulary = {}
+        embeddings = []
+
+        header = True
+        for line in self.input:
+            line = line.strip()
+            if header:
+                header = False
+                embeddings_len, embeddings_size = [int(el) for el in line.split()]
+                continue
+            splitted = line.split()
+            word, vector = splitted[0], [float(n) for n in splitted[1:]]
+
+            embeddings.append(vector)
+            vocabulary[word] = len(vector)-1
+
+        self.wordembedding = WordEmbedding(embeddings, vocabulary)
+        return self.wordembedding
 
 
 class SentenceReader(Reader):
