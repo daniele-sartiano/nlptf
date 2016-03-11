@@ -3,32 +3,9 @@
 import cPickle as pickle
 
 from nlptf.extractors import LabelExtractor
+from nlptf.util.wordembeddings import WordEmbedding
+from nlptf.reader import Word2VecReader
 import numpy as np
-
-def read_word_embeddings(word_embeddings_file):
-    embeddings = []
-    vocab = {}
-    embeddings_len = -1
-    embeddings_size = -1
-    with open(word_embeddings_file) as f:
-        header = True
-        for line in f:
-            line = line.strip()
-            if header:
-                header = False
-                embeddings_len, embeddings_size = [int(el) for el in line.split()]
-                continue
-            splitted = line.split()
-            word, vector = splitted[0], [float(n) for n in splitted[1:]]
-
-            embeddings.append(vector)
-            vocab[word] = len(embeddings)-1
-
-    assert embeddings_len == len(embeddings)
-    assert embeddings_size == len(embeddings[0])
-    assert len(vocab) == embeddings_len
-
-    return embeddings, vocab
 
 class Classifier(object):
     def __init__(self, reader, extractors, estimator, epochs, learning_rate, window_size, name_model, word_embeddings_file=None):
@@ -43,8 +20,9 @@ class Classifier(object):
         self.window_size = window_size
         self.name_model = name_model
     
+        self.word_embeddings = None
         if word_embeddings_file is not None:
-            self.vectors, self.vectors_vocab = Word2VecReader(word_embeddings_file).read()
+            self.word_embeddings = Word2VecReader(open(word_embeddings_file)).read()
             
 
     def predict(self):
@@ -69,6 +47,7 @@ class Classifier(object):
 
         predicted = self.estimator.predict(X)
         return predicted
+
     
     def train(self):
         sentences, labels = self.reader.read()
@@ -88,15 +67,15 @@ class Classifier(object):
         train_labels = y[int(len(X)*0.3):]
         dev_dataset = X[0:int(len(X)*0.3)]
         dev_labels = y[0:int(len(X)*0.3)]
-        
-        
+                
         self.estimator = self.estimator(
             epochs = self.epochs,
             num_labels = len(self.reader.vocabulary[self.reader.getPosition('LABEL')]),
             learning_rate = self.learning_rate,
             window_size = self.window_size,
             num_feats= len(self.extractors), 
-            name_model = self.name_model
+            name_model = self.name_model,
+            word_embeddings = self.word_embeddings
         )
         path = self.estimator.train(train_dataset, train_labels, dev_dataset, dev_labels)
         return path

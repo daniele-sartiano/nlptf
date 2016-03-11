@@ -27,9 +27,9 @@ class TestReader(unittest.TestCase):
     def test_we_reader(self):
         reader = Word2VecReader(sys.stdin)
         we = reader.read()
-        assert we.embeddings_len == len(we.embeddings)
-        assert we.embeddings_size == len(we.embeddings[0])
-        assert len(we.vocabulary) == we.embeddings_len
+        assert we.number == len(we.vectors)
+        assert we.size == len(we.vectors[0])
+        assert len(we.vocabulary) == we.number
 
 
 class TestLinear(unittest.TestCase):
@@ -52,7 +52,6 @@ class TestLinear(unittest.TestCase):
 
         params = {'epochs':25, 'learning_rate':0.01, 'window_size':5, 'name_model':'model.ckpt', 'word_embeddings_file': 'data/vectors.txt'}
         classifier = Classifier(reader, extractors, LinearEstimator, **params)
-        return
         classifier.train()
 
 

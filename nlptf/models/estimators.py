@@ -48,6 +48,9 @@ class LinearEstimator(Estimator):
         self.learning_rate = learning_rate
         self.window_size = window_size
         self.name_model = name_model
+        self.word_embeddings = word_embeddings
+
+        print 'Word Embeddings (%s x %s)' % (self.word_embeddings.size, self.word_embeddings.number)
 
         # define the graph
         self.graph = tf.Graph()
@@ -55,6 +58,8 @@ class LinearEstimator(Estimator):
 
             self.X = tf.placeholder(tf.float32, shape=(None, self.num_feats*self.window_size), name='trainset')
             self.y = tf.placeholder(tf.float32, shape=(None, self.num_labels), name='labels')
+
+            self.embeddings = tf.get_variable("embedding", shape=(self.word_embeddings.number, self.word_embeddings.size))
 
             self.dev_X = tf.placeholder(tf.float32, name='devset')
 
