@@ -8,8 +8,8 @@ import numpy as np
 import cPickle as pickle
 
 from nlptf.reader import IOBReader, Word2VecReader
-from nlptf.models.estimators import LinearEstimator
-from nlptf.classifier.classifier import Classifier
+from nlptf.models.estimators import LinearEstimator, LinearEstimatorWE
+from nlptf.classifier.classifier import Classifier, WordEmbeddingsClassifier
 from nlptf.extractors import FieldExtractor, CapitalExtractor
 
 
@@ -50,7 +50,7 @@ class TestLinear(unittest.TestCase):
             CapitalExtractor(reader.getPosition('FORM')), 
         ]
 
-        params = {'epochs':25, 'learning_rate':0.01, 'window_size':5, 'name_model':'model.ckpt', 'word_embeddings_file': 'data/vectors.txt'}
+        params = {'epochs':25, 'learning_rate':0.01, 'window_size':5, 'name_model':'model.ckpt'}
         classifier = Classifier(reader, extractors, LinearEstimator, **params)
         classifier.train()
 
@@ -83,54 +83,31 @@ class TestLinear(unittest.TestCase):
                 print
 
 
+class TestWordEmbeddings(unittest.TestCase):
 
-    # def test_train2(self):
-    #     f = {
-    #         'fields': [
-    #             {'position': 0, 'name': 'FORM', 'type': str},
-    #             {'position': 1, 'name': 'POS', 'type': str},
-    #             {'position': 2, 'name': 'LABEL', 'type': str}
-    #         ]
-    #     }
-
-    #     reader = IOBReader(sys.stdin, separator='\t', format=f)
-    #     X, y = reader.read()
-
-    #     pickle.dump(reader.dump(), open('reader.pkl', 'wb'))
-                
-    #     dataset = []
-    #     labels = []
-
-    #     # splitting in train and dev
-    #     train_dataset = X[int(len(X)*0.3):]
-    #     train_labels = y[int(len(X)*0.3):]
-    #     dev_dataset = X[0:int(len(X)*0.3)]
-    #     dev_labels = y[0:int(len(X)*0.3)]
+    def test_train(self):
+        f = {
+            'fields': [
+                {'position': 0, 'name': 'FORM', 'type': str},
+                {'position': 1, 'name': 'POS', 'type': str},
+                {'position': 2, 'name': 'LABEL', 'type': str}
+            ]
+        }
         
-    #     c = LinearClassifier(num_feats=5*2, n_labels=len(reader.vocabulary['LABEL']))
-    #     path = c.train(train_dataset, train_labels, dev_dataset, dev_labels)
-    #     print 'saved in %s' % path
+        reader = IOBReader(sys.stdin, separator='\t', format=f)
+        extractors = [
+            FieldExtractor(reader.getPosition('FORM')), 
+            FieldExtractor(reader.getPosition('POS')),
+            CapitalExtractor(reader.getPosition('FORM')), 
+        ]
 
-    # def test_predict(self):
-    #     lines = sys.stdin.readlines()
+        params = {
+            'epochs':25, 
+            'learning_rate':0.01, 
+            'window_size':5, 
+            'name_model':'model_we.ckpt', 
+            'word_embeddings_file': 'data/vectors.txt'}
 
-    #     reader = IOBReader(lines)
-    #     reader.load(pickle.load(open('reader.pkl')))
-        
-    #     X, _ = reader.read()
+        classifier = WordEmbeddingsClassifier(reader, extractors, LinearEstimatorWE, **params)
+        classifier.train()
 
-    #     c = LinearClassifier(num_feats=5*2, n_labels=len(reader.vocabulary['LABEL']))
-    #     predicted = c.predict(X)
-    #     #self.assertEqual(len(dataset), len(predicted))
-
-    #     labels_idx_rev = {v:k for k,v in reader.vocabulary['LABEL'].items()}
-
-    #     i = 0
-    #     for line in lines:
-    #         line = line.strip()
-    #         if line:
-    #             print '%s\t%s\t%s' % (line.split()[0], line.split()[1], labels_idx_rev[predicted[i]])
-    #             i += 1
-    #         else:
-    #             print
-        

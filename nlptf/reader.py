@@ -40,7 +40,7 @@ class Word2VecReader(WordEmbeddingReader):
             word, vector = splitted[0], [float(n) for n in splitted[1:]]
 
             vectors.append(vector)
-            vocabulary[word] = len(vector)-1
+            vocabulary[word] = len(vectors)-1
 
         self.wordembedding = WordEmbedding(vocabulary=vocabulary, vectors=vectors)
         return self.wordembedding
