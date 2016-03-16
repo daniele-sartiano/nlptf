@@ -79,7 +79,7 @@ class Classifier(object):
 
 
 class WordEmbeddingsClassifier(Classifier):
-    def __init__(self, reader, extractors, estimator, epochs, learning_rate, window_size, name_model, word_embeddings_file):
+    def __init__(self, reader, extractors, estimator, name_model, word_embeddings_file, window_size, epochs=None, learning_rate=None):
         
         super(WordEmbeddingsClassifier, self).__init__(reader, extractors, estimator, epochs, learning_rate, window_size, name_model)
         self.word_embeddings = Word2VecReader(open(word_embeddings_file)).read()

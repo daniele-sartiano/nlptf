@@ -136,7 +136,7 @@ class LinearEstimator(Estimator):
 
 class WordEmbeddingsEstimator(Estimator):
 
-    def __init__(self, epochs, num_labels, learning_rate, window_size, num_feats, name_model, word_embeddings):
+    def __init__(self, name_model, word_embeddings, window_size, epochs=None, num_labels=None, learning_rate=None, num_feats=None):
         self.epochs = epochs 
         self.num_feats = num_feats
         self.num_labels = num_labels
@@ -160,14 +160,12 @@ class WordEmbeddingsEstimator(Estimator):
             self.embedded_words_reshaped = tf.reshape(self.embedded_words, (-1, self.window_size*self.word_embeddings.size))
 
             # logistic regression
-            #self.predictions, self.loss, self.logits, self.weights, self.bias = self.logistic_regression(self.embedded_words_mean, self.y)
             self.predictions, self.loss, self.logits, self.weights, self.bias = self.logistic_regression(self.embedded_words_reshaped, self.y)
 
             self.predict_labels = tf.argmax(self.logits, 1, name="predictions")
 
             self.embedded_words_dev = tf.nn.embedding_lookup(self.embeddings, self.dev_X)
 
-            #self.dev_prediction = tf.nn.softmax(tf.matmul(tf.reduce_mean(self.embedded_words_dev, 1), self.weights) + self.bias)
             self.dev_prediction = tf.nn.softmax(tf.matmul(tf.reshape(self.embedded_words_dev, (-1, self.window_size*self.word_embeddings.size)), self.weights) + self.bias)
 
             # Optimizer.
@@ -177,8 +175,6 @@ class WordEmbeddingsEstimator(Estimator):
 
 
     def train(self, X, y, dev_X, dev_y):
-        #np.set_printoptions(threshold='nan')
-        print 'Train started'
         with tf.Session(graph=self.graph) as session:
 
             session.run(tf.initialize_all_variables())
@@ -194,18 +190,6 @@ class WordEmbeddingsEstimator(Estimator):
                         self.y: y[i]
                     }
                     _, loss, predictions, embedded_words, embedded_words_mean, embedded_words_reshaped = session.run([self.optimizer, self.loss, self.predictions, self.embedded_words, self.embedded_words_mean, self.embedded_words_reshaped], feed_dict)
-
-                    # print embedded_words.shape, 'vs', embedded_words_mean.shape, 'vs', embedded_words_reshaped.shape, 'vs', self.X.get_shape(), self.y.get_shape()
-
-                    # print 'embeddings size', self.word_embeddings.matrix.shape
-                    # print cembeddings[0]
-                    # print '-'*80
-                    # print embedded_words[0]
-                    # print '#'*80
-                    # print embedded_words_mean[0]
-                    # print '@'*80
-                    # print embedded_words_reshaped[0]
-                    # return
 
                     if i % 1000 == 0:
                         print '\tstep', i, 'loss %f' % loss

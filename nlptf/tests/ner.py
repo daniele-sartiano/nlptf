@@ -98,7 +98,7 @@ class TestWordEmbeddings(unittest.TestCase):
         extractors = []
 
         params = {
-            'epochs': 15,
+            'epochs': 100,
             'learning_rate': 0.01, 
             'window_size': 5,
             'name_model': 'model_we.ckpt', 
@@ -116,7 +116,7 @@ class TestWordEmbeddings(unittest.TestCase):
         extractors = []
 
         params = {
-            'epochs': 15,
+            'epochs': 100,
             'learning_rate': 0.01, 
             'window_size': 5, 
             'name_model': 'model_we.ckpt',
