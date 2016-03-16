@@ -42,6 +42,22 @@ class Estimator(object):
     def load(self, session):
         self.saver.restore(session, self.name_model)
 
+
+    def logistic_regression(self, X, y):
+        with tf.variable_scope('logistic_regression'):
+            weights = tf.get_variable('weights', [X.get_shape()[1],
+                                                       y.get_shape()[-1]])
+            bias = tf.get_variable('bias', [y.get_shape()[-1]])
+
+            logits = tf.nn.xw_plus_b(X, weights, bias) # Wx + b
+            
+            xent = tf.nn.softmax_cross_entropy_with_logits(logits,
+                                                           y,
+                                                           name="xent_raw")
+            loss = tf.reduce_mean(xent, name="xent")
+            predictions = tf.nn.softmax(logits)
+            return predictions, loss, logits, weights, bias
+
         
 
 class LinearEstimator(Estimator):
@@ -63,7 +79,7 @@ class LinearEstimator(Estimator):
 
             self.dev_X = tf.placeholder(tf.float32, name='devset')
 
-            self.predictions, self.loss, self.logits = self.logistic_regression(self.X, self.y)
+            self.predictions, self.loss, self.logits, self.weights, self.bias = self.logistic_regression(self.X, self.y)
 
             self.predict_labels = tf.argmax(self.logits, 1, name="predictions")
 
@@ -75,25 +91,6 @@ class LinearEstimator(Estimator):
             #self.saver = tf.train.Saver(tf.all_variables())
             self.saver = tf.train.Saver()
 
-    def logistic_regression(self, X, y):
-        with tf.variable_scope('logistic_regression'):
-            self.weights = tf.get_variable('weights', [X.get_shape()[1],
-                                                       y.get_shape()[-1]])
-            self.bias = tf.get_variable('bias', [y.get_shape()[-1]])
-            return self.softmax_classifier(X, y)
-
-
-    def softmax_classifier(self, tensor_in, labels):
-        with tf.op_scope([tensor_in, labels], None, "softmax_classifier"):
-            logits = tf.nn.xw_plus_b(tensor_in, self.weights, self.bias) # Wx + b
-            
-            xent = tf.nn.softmax_cross_entropy_with_logits(logits,
-                                                           labels,
-                                                           name="xent_raw")
-            loss = tf.reduce_mean(xent, name="xent")
-            predictions = tf.nn.softmax(logits)
-            return predictions, loss, logits
-
 
     def train(self, X, y, dev_X, dev_y):
 
@@ -102,7 +99,8 @@ class LinearEstimator(Estimator):
 
             for step in xrange(self.epochs):
                 for i in xrange(len(X)):
-                    cwords = self.extractWindow(X[i], self.window_size)
+                    PAD = [-1]*len(X[i][0])
+                    cwords = self.extractWindow(X[i], self.window_size, [PAD])
                     feed_dict = {self.X: cwords, self.y: y[i]}
 
                     _, loss, predictions = session.run([self.optimizer, self.loss, self.predictions], feed_dict)
@@ -114,7 +112,8 @@ class LinearEstimator(Estimator):
                 cwords_dev = []
                 labels_dev = []
                 for i in xrange(len(dev_X)):
-                    cwords_dev += self.extractWindow(dev_X[i], self.window_size)
+                    PAD = [-1]*len(dev_X[i][0])
+                    cwords_dev += self.extractWindow(dev_X[i], self.window_size, [PAD])
                     labels_dev += list(dev_y[i])
                 pred_y = self.dev_prediction.eval({self.dev_X: cwords_dev})
                 
@@ -128,13 +127,115 @@ class LinearEstimator(Estimator):
         with tf.Session(graph=self.graph) as session:
             self.load(session)
             for i in xrange(len(X)):
-                cwords += self.extractWindow(X[i], self.window_size)
+                PAD = [-1]*len(X[i][0])
+                cwords += self.extractWindow(X[i], self.window_size, [PAD])
 
             y_hat = session.run(self.predict_labels, {self.X: cwords})
-            return y_hat
+            return y_hat            
 
 
-class LinearEstimatorWE(Estimator):
+class WordEmbeddingsEstimator(Estimator):
+
+    def __init__(self, epochs, num_labels, learning_rate, window_size, num_feats, name_model, word_embeddings):
+        self.epochs = epochs 
+        self.num_feats = num_feats
+        self.num_labels = num_labels
+        self.learning_rate = learning_rate
+        self.window_size = window_size
+        self.name_model = name_model
+        self.word_embeddings = word_embeddings
+
+        # define the graph
+        self.graph = tf.Graph()
+        with self.graph.as_default():
+            # Embeddings Layer
+            self.X = tf.placeholder(tf.int32, shape=(None, self.window_size), name='trainset')
+            self.y = tf.placeholder(tf.float32, shape=(None, self.num_labels), name='labels')
+            self.dev_X = tf.placeholder(tf.int32, name='devset')
+
+            self.embeddings = tf.get_variable("embedding", shape=(self.word_embeddings.number, self.word_embeddings.size))
+            self.embedded_words = tf.nn.embedding_lookup(self.embeddings, self.X)
+            self.embedded_words_mean = tf.reduce_sum(self.embedded_words, 1)
+
+            self.embedded_words_reshaped = tf.reshape(self.embedded_words, (-1, self.window_size*self.word_embeddings.size))
+
+            # logistic regression
+            #self.predictions, self.loss, self.logits, self.weights, self.bias = self.logistic_regression(self.embedded_words_mean, self.y)
+            self.predictions, self.loss, self.logits, self.weights, self.bias = self.logistic_regression(self.embedded_words_reshaped, self.y)
+
+            self.predict_labels = tf.argmax(self.logits, 1, name="predictions")
+
+            self.embedded_words_dev = tf.nn.embedding_lookup(self.embeddings, self.dev_X)
+
+            #self.dev_prediction = tf.nn.softmax(tf.matmul(tf.reduce_mean(self.embedded_words_dev, 1), self.weights) + self.bias)
+            self.dev_prediction = tf.nn.softmax(tf.matmul(tf.reshape(self.embedded_words_dev, (-1, self.window_size*self.word_embeddings.size)), self.weights) + self.bias)
+
+            # Optimizer.
+            self.optimizer = tf.train.GradientDescentOptimizer(self.learning_rate).minimize(self.loss)
+
+            self.saver = tf.train.Saver()
+
+
+    def train(self, X, y, dev_X, dev_y):
+        #np.set_printoptions(threshold='nan')
+        print 'Train started'
+        with tf.Session(graph=self.graph) as session:
+
+            session.run(tf.initialize_all_variables())
+
+            # init the embeddings
+            session.run(self.embeddings.assign(self.word_embeddings.matrix))
+
+            for step in xrange(self.epochs):
+                for i in xrange(len(X)):
+                    cembeddings = self.extractWindow(X[i], self.window_size, [self.word_embeddings.padding])
+                    feed_dict = {
+                        self.X: cembeddings, 
+                        self.y: y[i]
+                    }
+                    _, loss, predictions, embedded_words, embedded_words_mean, embedded_words_reshaped = session.run([self.optimizer, self.loss, self.predictions, self.embedded_words, self.embedded_words_mean, self.embedded_words_reshaped], feed_dict)
+
+                    # print embedded_words.shape, 'vs', embedded_words_mean.shape, 'vs', embedded_words_reshaped.shape, 'vs', self.X.get_shape(), self.y.get_shape()
+
+                    # print 'embeddings size', self.word_embeddings.matrix.shape
+                    # print cembeddings[0]
+                    # print '-'*80
+                    # print embedded_words[0]
+                    # print '#'*80
+                    # print embedded_words_mean[0]
+                    # print '@'*80
+                    # print embedded_words_reshaped[0]
+                    # return
+
+                    if i % 1000 == 0:
+                        print '\tstep', i, 'loss %f' % loss
+                        print '\taccuracy %f' % self.accuracy(predictions, y[i])
+                
+                cembeddings_dev = []
+                labels_dev = []
+                for i in xrange(len(dev_X)):
+                    cembeddings_dev += self.extractWindow(dev_X[i], self.window_size, [self.word_embeddings.padding])
+                    labels_dev += list(dev_y[i])
+                pred_y = self.dev_prediction.eval({self.dev_X: cembeddings_dev})
+                
+                print 'Epoch %s' % step, self.accuracy(pred_y, labels_dev)
+                    
+            return self.save(session)
+
+
+    def predict(self, X):
+        cembeddings = []
+        with tf.Session(graph=self.graph) as session:
+            self.load(session)
+            for i in xrange(len(X)):
+                cembeddings += self.extractWindow(X[i], self.window_size, [self.word_embeddings.padding])
+            y_hat = session.run(self.predict_labels, {self.X: cembeddings})
+            return y_hat            
+
+
+
+
+class ConvEstimatorWE(Estimator):
 
     def __init__(self, epochs, num_labels, learning_rate, window_size, num_feats, name_model, word_embeddings):
         self.epochs = epochs 
@@ -308,6 +409,3 @@ class LinearEstimatorWE(Estimator):
 
             y_hat = session.run(self.predict_labels, {self.X: cwords})
             return y_hat
-            
-
-

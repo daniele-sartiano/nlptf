@@ -8,7 +8,7 @@ import numpy as np
 import cPickle as pickle
 
 from nlptf.reader import IOBReader, Word2VecReader
-from nlptf.models.estimators import LinearEstimator, LinearEstimatorWE
+from nlptf.models.estimators import LinearEstimator, WordEmbeddingsEstimator
 from nlptf.classifier.classifier import Classifier, WordEmbeddingsClassifier
 from nlptf.extractors import FieldExtractor, CapitalExtractor
 
@@ -50,7 +50,7 @@ class TestLinear(unittest.TestCase):
             CapitalExtractor(reader.getPosition('FORM')), 
         ]
 
-        params = {'epochs':25, 'learning_rate':0.01, 'window_size':5, 'name_model':'model.ckpt'}
+        params = {'epochs':25, 'learning_rate':0.01, 'window_size':3, 'name_model':'model.ckpt'}
         classifier = Classifier(reader, extractors, LinearEstimator, **params)
         classifier.train()
 
@@ -65,7 +65,7 @@ class TestLinear(unittest.TestCase):
             CapitalExtractor(reader.getPosition('FORM')), 
         ]
 
-        params = {'epochs':25, 'learning_rate':0.01, 'window_size':5, 'name_model':'model.ckpt'}
+        params = {'epochs':25, 'learning_rate':0.01, 'window_size':3, 'name_model':'model.ckpt'}
         classifier = Classifier(reader, extractors, LinearEstimator, **params)
         
         predicted = classifier.predict()
@@ -95,19 +95,42 @@ class TestWordEmbeddings(unittest.TestCase):
         }
         
         reader = IOBReader(sys.stdin, separator='\t', format=f)
-        extractors = [
-            FieldExtractor(reader.getPosition('FORM')), 
-            FieldExtractor(reader.getPosition('POS')),
-            CapitalExtractor(reader.getPosition('FORM')), 
-        ]
+        extractors = []
 
         params = {
-            'epochs':25, 
-            'learning_rate':0.01, 
-            'window_size':5, 
-            'name_model':'model_we.ckpt', 
-            'word_embeddings_file': 'data/vectors.txt'}
+            'epochs': 15,
+            'learning_rate': 0.01, 
+            'window_size': 5,
+            'name_model': 'model_we.ckpt', 
+            'word_embeddings_file': 'data/vectors.txt'
+        }
 
-        classifier = WordEmbeddingsClassifier(reader, extractors, LinearEstimatorWE, **params)
+        classifier = WordEmbeddingsClassifier(reader, extractors, WordEmbeddingsEstimator, **params)
         classifier.train()
 
+
+    def test_predict(self):
+        lines = sys.stdin.readlines()
+        reader = IOBReader(lines)
+
+        extractors = []
+
+        params = {
+            'epochs': 15,
+            'learning_rate': 0.01, 
+            'window_size': 5, 
+            'name_model': 'model_we.ckpt',
+            'word_embeddings_file': 'data/vectors.txt'
+        }
+        classifier = WordEmbeddingsClassifier(reader, extractors, WordEmbeddingsEstimator, **params)
+        predicted = classifier.predict()
+        labels_idx_rev = {v:k for k,v in reader.vocabulary[reader.getPosition('LABEL')].items()}
+
+        i = 0
+        for line in lines:
+            line = line.strip()
+            if line:
+                print '%s\t%s\t%s' % (line.split()[0], line.split()[1], labels_idx_rev[predicted[i]])
+                i += 1
+            else:
+                print
