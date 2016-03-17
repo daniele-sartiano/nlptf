@@ -10,7 +10,7 @@ import numpy as np
 
 class Classifier(object):
 
-    def __init__(self, reader, extractors, estimator, epochs, learning_rate, window_size, name_model):
+    def __init__(self, reader, extractors, estimator, epochs, learning_rate, window_size, name_model, reader_file):
         self.reader = reader
         self.extractors = extractors
         self.estimator = estimator
@@ -21,9 +21,11 @@ class Classifier(object):
         self.learning_rate = learning_rate
         self.window_size = window_size
         self.name_model = name_model
+        self.reader_file = reader_file
+
 
     def predict(self):
-        self.reader.load(pickle.load(open('reader.pkl')))
+        self.reader.load(pickle.load(open(self.reader_file)))
         sentences, _ = self.reader.read()
 
         X = []
@@ -57,7 +59,7 @@ class Classifier(object):
             X.append([el for el in zip(*feats)])
             y.append(self.labelExtractor.extract(listLabels, self.reader.vocabulary))
             
-        pickle.dump(self.reader.dump(), open('reader.pkl', 'wb'))
+        pickle.dump(self.reader.dump(), open(self.reader_file, 'wb'))
 
         # splitting in train and dev
         train_dataset = X[int(len(X)*0.3):]
@@ -79,9 +81,9 @@ class Classifier(object):
 
 
 class WordEmbeddingsClassifier(Classifier):
-    def __init__(self, reader, extractors, estimator, name_model, window_size, word_embeddings_file=None, epochs=None, learning_rate=None):
+    def __init__(self, reader, extractors, estimator, name_model, window_size, reader_file='reader.pkl', word_embeddings_file=None, epochs=None, learning_rate=None):
         
-        super(WordEmbeddingsClassifier, self).__init__(reader, extractors, estimator, epochs, learning_rate, window_size, name_model)
+        super(WordEmbeddingsClassifier, self).__init__(reader, extractors, estimator, epochs, learning_rate, window_size, name_model, reader_file)
         self.word_embeddings = None
         if word_embeddings_file is not None:
             self.word_embeddings = Word2VecReader(open(word_embeddings_file)).read()
@@ -99,7 +101,7 @@ class WordEmbeddingsClassifier(Classifier):
             y.append(self.labelExtractor.extract(listLabels, self.reader.vocabulary))
             X.append([self.word_embeddings.w2idx(t[self.reader.getPosition('FORM')]) for t in sentence])
 
-        pickle.dump(self.reader.dump(), open('reader_we.pkl', 'wb'))
+        pickle.dump(self.reader.dump(), open(self.reader_file, 'wb'))
 
         # splitting in train and dev
         train_dataset = X[int(len(X)*0.3):]
@@ -128,7 +130,7 @@ class WordEmbeddingsClassifier(Classifier):
 
 
     def predict(self):
-        self.reader.load(pickle.load(open('reader_we.pkl')))
+        self.reader.load(pickle.load(open(self.reader_file)))
         sentences, _ = self.reader.read()
 
         X = []

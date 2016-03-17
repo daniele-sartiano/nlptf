@@ -183,9 +183,6 @@ class WordEmbeddingsEstimator(Estimator):
 
             session.run(tf.initialize_all_variables())
 
-            # # init the embeddings
-            # session.run(self.embeddings.assign(self.word_embeddings.matrix))
-
             for step in xrange(self.epochs):
                 for i in xrange(len(X)):
                     cembeddings = self.extractWindow(X[i], self.window_size, [self.word_embeddings.padding])
@@ -193,9 +190,13 @@ class WordEmbeddingsEstimator(Estimator):
                         self.X: cembeddings, 
                         self.y: y[i]
                     }
-                    _, loss, predictions, embedded_words, embedded_words_mean, embedded_words_reshaped = session.run([self.optimizer, self.loss, self.predictions, self.embedded_words, self.embedded_words_mean, self.embedded_words_reshaped], feed_dict)
+                    # _, loss, predictions, embeddings, embedded_words, embedded_words_mean, embedded_words_reshaped = session.run([self.optimizer, self.loss, self.predictions, self.embeddings, self.embedded_words, self.embedded_words_mean, self.embedded_words_reshaped], feed_dict)
+
+
+                    _, loss, predictions = session.run([self.optimizer, self.loss, self.predictions], feed_dict)
 
                     if i % 1000 == 0:
+                        
                         print '\tstep', i, 'loss %f' % loss
                         print '\taccuracy %f' % self.accuracy(predictions, y[i])
                 
