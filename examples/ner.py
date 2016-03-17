@@ -21,8 +21,8 @@ def main():
     parser_train.add_argument('-l', '--learning-rate', help='learning rate', type=float, required=True)
     parser_train.add_argument('-wi', '--window', help='context window size', type=int, required=True)
     parser_train.add_argument('-m', '--model', help='model-file', type=str, required=True)
-    parser_train.add_argument('-w', '--word-embeddings', help='word embeddings', type=str, required=True)
-    parser_train.add_argument('-et', '--word-embeddings-type', help='word embeddings type', type=str, required=True)
+    parser_train.add_argument('-w', '--word-embeddings', help='word embeddings', type=str, required=False)
+    parser_train.add_argument('-et', '--word-embeddings-type', help='word embeddings type', type=str, required=False)
     parser_train.add_argument('-i', '--input-file', help='input file', type=str, required=False)
 
     parser_tag = subparsers.add_parser('tag')
@@ -30,8 +30,8 @@ def main():
     parser_tag.add_argument('-m', '--model', help='model-file', type=str, required=True)
     parser_tag.add_argument('-l', '--learning-rate', help='learning rate', type=float, required=True)
     parser_tag.add_argument('-i', '--input-file', help='input file', type=str, required=False)
-    parser_tag.add_argument('-w', '--word-embeddings', help='word embeddings', type=str, required=True)
-    parser_tag.add_argument('-et', '--word-embeddings-type', help='word embeddings type', type=str, required=True)
+    parser_tag.add_argument('-w', '--word-embeddings', help='word embeddings', type=str, required=False)
+    parser_tag.add_argument('-et', '--word-embeddings-type', help='word embeddings type', type=str, required=False)
     parser_tag.add_argument('-wi', '--window', help='context window size', type=int, required=True)
 
 

@@ -136,7 +136,7 @@ class LinearEstimator(Estimator):
 
 class WordEmbeddingsEstimator(Estimator):
 
-    def __init__(self, name_model, word_embeddings, window_size, epochs=None, num_labels=None, learning_rate=None, num_feats=None):
+    def __init__(self, name_model, window_size, word_embeddings, epochs=None, num_labels=None, learning_rate=None, num_feats=None):
         self.epochs = epochs 
         self.num_feats = num_feats
         self.num_labels = num_labels
@@ -153,7 +153,11 @@ class WordEmbeddingsEstimator(Estimator):
             self.y = tf.placeholder(tf.float32, shape=(None, self.num_labels), name='labels')
             self.dev_X = tf.placeholder(tf.int32, name='devset')
 
-            self.embeddings = tf.get_variable("embedding", shape=(self.word_embeddings.number, self.word_embeddings.size))
+            if self.word_embeddings.vectors:
+                self.embeddings = tf.Variable(self.word_embeddings.matrix, name="embedding")
+            else:
+                self.embeddings = tf.Variable(tf.random_uniform([self.word_embeddings.number, self.word_embeddings.size], -1.0, 1.0), name="embedding")
+
             self.embedded_words = tf.nn.embedding_lookup(self.embeddings, self.X)
             self.embedded_words_mean = tf.reduce_sum(self.embedded_words, 1)
 
@@ -179,8 +183,8 @@ class WordEmbeddingsEstimator(Estimator):
 
             session.run(tf.initialize_all_variables())
 
-            # init the embeddings
-            session.run(self.embeddings.assign(self.word_embeddings.matrix))
+            # # init the embeddings
+            # session.run(self.embeddings.assign(self.word_embeddings.matrix))
 
             for step in xrange(self.epochs):
                 for i in xrange(len(X)):

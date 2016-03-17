@@ -74,6 +74,10 @@ class IOBReader(SentenceReader):
     }
 
 
+    UNK = '<unk>'
+    PAD = '<pad>'
+
+
     def __init__(self, input, format=None, separator='\t', vocabulary=None, gazetter=None):
         '''Construct an IOB Reader.
 
@@ -136,8 +140,8 @@ class IOBReader(SentenceReader):
         if not self.vocabulary:
             for field in self.format['fields']:
                 if field['name'] != 'LABEL':
-                    vocabulary[field['position']]['UNK'] = len(vocabulary[field['position']])
-                    vocabulary[field['position']]['<PAD>'] = len(vocabulary[field['position']])
+                    vocabulary[field['position']][self.UNK] = len(vocabulary[field['position']])
+                    vocabulary[field['position']][self.PAD] = len(vocabulary[field['position']])
 
             self.vocabulary = vocabulary
 

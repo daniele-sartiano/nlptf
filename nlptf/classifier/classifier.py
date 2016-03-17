@@ -79,16 +79,22 @@ class Classifier(object):
 
 
 class WordEmbeddingsClassifier(Classifier):
-    def __init__(self, reader, extractors, estimator, name_model, word_embeddings_file, window_size, epochs=None, learning_rate=None):
+    def __init__(self, reader, extractors, estimator, name_model, window_size, word_embeddings_file=None, epochs=None, learning_rate=None):
         
         super(WordEmbeddingsClassifier, self).__init__(reader, extractors, estimator, epochs, learning_rate, window_size, name_model)
-        self.word_embeddings = Word2VecReader(open(word_embeddings_file)).read()
-
+        self.word_embeddings = None
+        if word_embeddings_file is not None:
+            self.word_embeddings = Word2VecReader(open(word_embeddings_file)).read()
 
     def train(self):
         sentences, labels = self.reader.read()
         X = []
         y = []
+
+        # if there are not wordembeddings assign the vocabulary to the word embeddings
+        if self.word_embeddings is None:
+            self.word_embeddings = WordEmbedding(self.reader.vocabulary[self.reader.getPosition('FORM')], [], self.reader.PAD, self.reader.UNK)
+
         for sentence, listLabels in zip(sentences, labels):
             y.append(self.labelExtractor.extract(listLabels, self.reader.vocabulary))
             X.append([self.word_embeddings.w2idx(t[self.reader.getPosition('FORM')]) for t in sentence])
@@ -126,6 +132,11 @@ class WordEmbeddingsClassifier(Classifier):
         sentences, _ = self.reader.read()
 
         X = []
+
+        # if there are not wordembeddings assign the vocabulary to the word embeddings
+        if self.word_embeddings is None:
+            self.word_embeddings = WordEmbedding(self.reader.vocabulary[self.reader.getPosition('FORM')], [], self.reader.PAD, self.reader.UNK)
+
         for sentence in sentences:
             X.append([self.word_embeddings.w2idx(t[self.reader.getPosition('FORM')]) for t in sentence])
 
