@@ -261,50 +261,86 @@ class ConvWordEmbeddingsEstimator(WordEmbeddingsEstimator):
 
             self.embedded_words = tf.nn.embedding_lookup(self.embeddings, self.X)
             self.embedded_words_expanded = tf.expand_dims(self.embedded_words, -1)
-            
-            with tf.name_scope("conv-maxpool"):
 
+            with tf.name_scope("conv-layer1"):
                 # Convolution Layer
-                W = tf.Variable(tf.truncated_normal(filter_shape, stddev=0.1), name="W")
-                b = tf.Variable(tf.constant(0.1, shape=[num_filters]), name="b")
+                #W = tf.Variable(tf.truncated_normal(filter_shape, stddev=0.1), name="W")
+                n_filters = 128
+                pooling_window = 1
+                pooling_strides = 1
 
-                conv = tf.nn.conv2d(
+                #[filter_height, filter_width, in_channels, out_channels]
+                filters1 = tf.get_variable('filters1', 
+                                           [self.window_size,
+                                            self.word_embeddings.size, 
+                                            self.embedded_words_expanded.get_shape()[-1], 
+                                            n_filters], 
+                                           tf.float32)
+
+                conv1 = tf.nn.conv2d(
                     self.embedded_words_expanded,
-                    W,
+                    filters1,
                     strides=[1, 1, 1, 1],
                     padding="VALID",
-                    name="conv")
+                    name="conv1")
+
+                bias1 = tf.get_variable('bias1', [1, 1, 1, n_filters], tf.float32)
+                conv1 = conv1 + bias1
 
                 # Apply nonlinearity
-                h = tf.nn.relu(tf.nn.bias_add(conv, b), name="relu")
+                conv1 = tf.nn.relu(conv1, name="relu")
+
                 # Maxpooling over the outputs
-                self.h_pool = tf.nn.max_pool(
-                    h,
-                    ksize=[1, self.window_size - filter_size + 1, 1, 1],
-                    strides=[1, 1, 1, 1],
-                    padding='VALID',
+                pool1 = tf.nn.max_pool(
+                    conv1,
+                    ksize=[1, pooling_window, 1, 1],
+                    strides=[1, pooling_strides, 1, 1],
+                    padding='SAME',
                     name="pool")
+                pool1 = tf.transpose(pool1, [0, 1, 3, 2])
 
-            self.h_pool_flat = tf.reshape(self.h_pool, [-1, num_filters])
 
-            # Add dropout
-            with tf.name_scope("dropout"):
-                self.h_drop = tf.nn.dropout(self.h_pool_flat, self.dropout_keep_prob)
+            print 'filters1', filters1.get_shape()
+            print 'self.embedded_words_expanded', self.embedded_words_expanded.get_shape()
+            print 'pool1', pool1.get_shape()
 
+            with tf.name_scope("conv-layer2"):
+                # filters2 = tf.get_variable('filters2', [self.window_size,
+                #                                        n_filters, 
+                #                                        pool1.get_shape()[3],
+                #                                        n_filters], 
+                #                            tf.float32)
+
+                filters2 = tf.get_variable('filters2', [1,
+                                                       n_filters, 
+                                                       pool1.get_shape()[3],
+                                                       n_filters], 
+                                           tf.float32)
+
+
+                conv2 = tf.nn.conv2d(
+                    pool1,
+                    filters2,
+                    strides=[1, 1, 1, 1],
+                    padding="VALID",
+                    name="conv2")
+                bias2 = tf.get_variable('bias2', [1, 1, 1, n_filters], tf.float32)
+                conv2 = conv2 + bias2
+                
+                pool2 = tf.squeeze(tf.reduce_max(conv2, 1), squeeze_dims=[1])
 
             # Final (unnormalized) scores and predictions
             with tf.name_scope("output"):
-                W = tf.Variable(tf.truncated_normal([num_filters, self.num_labels], stddev=0.1), name="W")
-                b = tf.Variable(tf.constant(0.1, shape=[self.num_labels]), name="b")
-                l2_loss += tf.nn.l2_loss(W)
-                l2_loss += tf.nn.l2_loss(b)
-                self.scores = tf.nn.xw_plus_b(self.h_drop, W, b, name="scores")
+                W = tf.get_variable('W', [pool2.get_shape()[1], self.num_labels])
+                b = tf.get_variable('b', [self.num_labels])
+                self.scores = tf.nn.xw_plus_b(pool2, W, b, name="scores") #digits
                 self.predictions = tf.argmax(self.scores, 1, name="predictions")
+                #self.predictions = tf.nn.softmax(self.scores, name="predictions")
 
-            # CalculateMean cross-entropy loss
+            # Calculate Mean cross-entropy loss
             with tf.name_scope("loss"):
-                losses = tf.nn.softmax_cross_entropy_with_logits(self.scores, self.y)
-                self.loss = tf.reduce_mean(losses) + l2_reg_lambda * l2_loss
+                losses = tf.nn.softmax_cross_entropy_with_logits(self.scores, self.y) #xent
+                self.loss = tf.reduce_mean(losses)
 
             # Accuracy
             with tf.name_scope("accuracy"):
@@ -371,9 +407,7 @@ class ConvWordEmbeddingsEstimator(WordEmbeddingsEstimator):
                 cembeddings += self.extractWindow(X[i], self.window_size, [self.word_embeddings.padding])
             y_hat = session.run(self.predictions, {self.X: cembeddings, self.dropout_keep_prob: 1.0})
             return y_hat            
-        
-
-
+            
 
 class ConvEstimatorWE(Estimator):
 

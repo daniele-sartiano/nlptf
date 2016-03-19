@@ -32,7 +32,6 @@ def main():
     parser_train.add_argument('-t', '--type', help='estimator type', type=str, required=True, choices=ESTIMATORS.keys())
     
 
-
     parser_tag = subparsers.add_parser('tag')
     parser_tag.set_defaults(which='tag')
     parser_tag.add_argument('-m', '--model', help='model-file', type=str, required=True)
@@ -69,12 +68,7 @@ def main():
             'reader_file': args.reader_file
         }
 
-        
-
-        #classifier = WordEmbeddingsClassifier(reader, extractors, WordEmbeddingsEstimator, **params)
-        #classifier = WordEmbeddingsClassifier(reader, extractors, ConvWordEmbeddingsEstimator, **params)
         classifier = WordEmbeddingsClassifier(reader, extractors, ESTIMATORS[args.type], **params)
-
         classifier.train()
 
     elif args.which == 'tag':
@@ -91,8 +85,6 @@ def main():
             'reader_file': args.reader_file
         }
 
-        #classifier = WordEmbeddingsClassifier(reader, extractors, WordEmbeddingsEstimator, **params)
-        #classifier = WordEmbeddingsClassifier(reader, extractors, ConvWordEmbeddingsEstimator, **params)
         classifier = WordEmbeddingsClassifier(reader, extractors, ESTIMATORS[args.type], **params)
 
         predicted = classifier.predict()
