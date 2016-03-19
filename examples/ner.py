@@ -7,13 +7,14 @@ sys.path.append('../nlptf')
 import argparse
 
 from nlptf.reader import IOBReader, Word2VecReader
-from nlptf.models.estimators import WordEmbeddingsEstimator, ConvWordEmbeddingsEstimator
+from nlptf.models.estimators import WordEmbeddingsEstimator, ConvWordEmbeddingsEstimator, RNNWordEmbeddingsEstimator
 from nlptf.classifier.classifier import WordEmbeddingsClassifier
 
 
 ESTIMATORS = {
     'linear': WordEmbeddingsEstimator,
-    'conv': ConvWordEmbeddingsEstimator
+    'conv': ConvWordEmbeddingsEstimator,
+    'rnn': RNNWordEmbeddingsEstimator
 }
 
 def main():
