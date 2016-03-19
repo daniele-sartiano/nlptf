@@ -7,8 +7,14 @@ sys.path.append('../nlptf')
 import argparse
 
 from nlptf.reader import IOBReader, Word2VecReader
-from nlptf.models.estimators import WordEmbeddingsEstimator
+from nlptf.models.estimators import WordEmbeddingsEstimator, ConvWordEmbeddingsEstimator
 from nlptf.classifier.classifier import WordEmbeddingsClassifier
+
+
+ESTIMATORS = {
+    'linear': WordEmbeddingsEstimator,
+    'conv': ConvWordEmbeddingsEstimator
+}
 
 def main():
     parser = argparse.ArgumentParser(description='Named Entity Recognition with TensorFlow')
@@ -23,6 +29,7 @@ def main():
     parser_train.add_argument('-w', '--word-embeddings', help='word embeddings', type=str, required=False)
     parser_train.add_argument('-et', '--word-embeddings-type', help='word embeddings type', type=str, required=False)
     parser_train.add_argument('-i', '--input-file', help='input file', type=str, required=False)
+    parser_train.add_argument('-t', '--type', help='estimator type', type=str, required=True, choices=ESTIMATORS.keys())
     
 
 
@@ -35,6 +42,7 @@ def main():
     parser_tag.add_argument('-w', '--word-embeddings', help='word embeddings', type=str, required=False)
     parser_tag.add_argument('-et', '--word-embeddings-type', help='word embeddings type', type=str, required=False)
     parser_tag.add_argument('-wi', '--window', help='context window size', type=int, required=True)
+    parser_tag.add_argument('-t', '--type', help='estimator type', type=str, required=True, choices=ESTIMATORS.keys())
 
     args = parser.parse_args()
     infile = args.input_file if args.input_file is not None else sys.stdin
@@ -61,7 +69,12 @@ def main():
             'reader_file': args.reader_file
         }
 
-        classifier = WordEmbeddingsClassifier(reader, extractors, WordEmbeddingsEstimator, **params)
+        
+
+        #classifier = WordEmbeddingsClassifier(reader, extractors, WordEmbeddingsEstimator, **params)
+        #classifier = WordEmbeddingsClassifier(reader, extractors, ConvWordEmbeddingsEstimator, **params)
+        classifier = WordEmbeddingsClassifier(reader, extractors, ESTIMATORS[args.type], **params)
+
         classifier.train()
 
     elif args.which == 'tag':
@@ -78,7 +91,10 @@ def main():
             'reader_file': args.reader_file
         }
 
-        classifier = WordEmbeddingsClassifier(reader, extractors, WordEmbeddingsEstimator, **params)
+        #classifier = WordEmbeddingsClassifier(reader, extractors, WordEmbeddingsEstimator, **params)
+        #classifier = WordEmbeddingsClassifier(reader, extractors, ConvWordEmbeddingsEstimator, **params)
+        classifier = WordEmbeddingsClassifier(reader, extractors, ESTIMATORS[args.type], **params)
+
         predicted = classifier.predict()
         labels_idx_rev = {v:k for k,v in reader.vocabulary[reader.getPosition('LABEL')].items()}
 
