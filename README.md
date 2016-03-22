@@ -1,2 +1,2 @@
 # nlptf
-Natural Language Tools with TensorFlow
+Natural Language Processing Tools with TensorFlow
