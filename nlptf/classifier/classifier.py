@@ -10,7 +10,7 @@ import numpy as np
 
 class Classifier(object):
 
-    def __init__(self, reader, extractors, estimator, epochs, learning_rate, window_size, name_model, reader_file):
+    def __init__(self, reader, extractors, estimator, epochs, learning_rate, window_size, name_model, reader_file, optimizer):
         self.reader = reader
         self.extractors = extractors
         self.estimator = estimator
@@ -22,7 +22,7 @@ class Classifier(object):
         self.window_size = window_size
         self.name_model = name_model
         self.reader_file = reader_file
-
+        self.optimizer_type = optimizer
 
     def predict(self):
         self.reader.load(pickle.load(open(self.reader_file)))
@@ -81,9 +81,9 @@ class Classifier(object):
 
 
 class WordEmbeddingsClassifier(Classifier):
-    def __init__(self, reader, extractors, estimator, name_model, window_size, reader_file='reader.pkl', word_embeddings_file=None, epochs=None, learning_rate=None):
+    def __init__(self, reader, extractors, estimator, name_model, window_size, reader_file='reader.pkl', word_embeddings_file=None, epochs=None, learning_rate=None, optimizer=None):
         
-        super(WordEmbeddingsClassifier, self).__init__(reader, extractors, estimator, epochs, learning_rate, window_size, name_model, reader_file)
+        super(WordEmbeddingsClassifier, self).__init__(reader, extractors, estimator, epochs, learning_rate, window_size, name_model, reader_file, optimizer)
         self.word_embeddings = None
         if word_embeddings_file is not None:
             self.word_embeddings = Word2VecReader(open(word_embeddings_file)).read()
@@ -117,7 +117,8 @@ class WordEmbeddingsClassifier(Classifier):
             window_size = self.window_size,
             num_feats= len(self.extractors), 
             name_model = self.name_model,
-            word_embeddings = self.word_embeddings
+            word_embeddings = self.word_embeddings,
+            optimizer=self.optimizer_type
         )
 
         path = self.estimator.train(

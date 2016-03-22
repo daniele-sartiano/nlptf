@@ -10,6 +10,7 @@ from nlptf.reader import IOBReader, Word2VecReader
 from nlptf.models.estimators import WordEmbeddingsEstimator, ConvWordEmbeddingsEstimator, RNNWordEmbeddingsEstimator
 from nlptf.classifier.classifier import WordEmbeddingsClassifier
 
+import tensorflow as tf
 
 ESTIMATORS = {
     'linear': WordEmbeddingsEstimator,
@@ -17,32 +18,36 @@ ESTIMATORS = {
     'rnn': RNNWordEmbeddingsEstimator
 }
 
+OPTIMIZERS = {
+    'adam': tf.train.AdamOptimizer,
+    'grad': tf.train.GradientDescentOptimizer
+}
+
 def main():
+
     parser = argparse.ArgumentParser(description='Named Entity Recognition with TensorFlow')
     subparsers = parser.add_subparsers()
     parser_train = subparsers.add_parser('train')
     parser_train.set_defaults(which='train')
     parser_train.add_argument('-e', '--epochs', help='epochs number', type=int, required=True)
     parser_train.add_argument('-l', '--learning-rate', help='learning rate', type=float, required=True)
-    parser_train.add_argument('-wi', '--window', help='context window size', type=int, required=True)
-    parser_train.add_argument('-m', '--model', help='model-file', type=str, required=True)
-    parser_train.add_argument('-r', '--reader-file', help='reader file', type=str, required=True)
-    parser_train.add_argument('-w', '--word-embeddings', help='word embeddings', type=str, required=False)
-    parser_train.add_argument('-et', '--word-embeddings-type', help='word embeddings type', type=str, required=False)
-    parser_train.add_argument('-i', '--input-file', help='input file', type=str, required=False)
-    parser_train.add_argument('-t', '--type', help='estimator type', type=str, required=True, choices=ESTIMATORS.keys())
-    
+    parser_train.add_argument('-o', '--optimizer', help='optimizer', type=str, required=True, choices=OPTIMIZERS.keys())
 
     parser_tag = subparsers.add_parser('tag')
     parser_tag.set_defaults(which='tag')
-    parser_tag.add_argument('-m', '--model', help='model-file', type=str, required=True)
-    parser_tag.add_argument('-l', '--learning-rate', help='learning rate', type=float, required=True)
-    parser_tag.add_argument('-r', '--reader-file', help='reader file', type=str, required=True)
-    parser_tag.add_argument('-i', '--input-file', help='input file', type=str, required=False)
-    parser_tag.add_argument('-w', '--word-embeddings', help='word embeddings', type=str, required=False)
-    parser_tag.add_argument('-et', '--word-embeddings-type', help='word embeddings type', type=str, required=False)
-    parser_tag.add_argument('-wi', '--window', help='context window size', type=int, required=True)
-    parser_tag.add_argument('-t', '--type', help='estimator type', type=str, required=True, choices=ESTIMATORS.keys())
+
+    #parser_tag.add_argument('-l', '--learning-rate', help='learning rate', type=float, required=True)
+
+    # common arguments
+    for p in (parser_train, parser_tag):
+        p.add_argument('-m', '--model', help='model-file', type=str, required=True)
+        p.add_argument('-r', '--reader-file', help='reader file', type=str, required=True)
+        p.add_argument('-w', '--word-embeddings', help='word embeddings', type=str, required=False)
+        p.add_argument('-et', '--word-embeddings-type', help='word embeddings type', type=str, required=False)
+        p.add_argument('-i', '--input-file', help='input file', type=str, required=False)
+        p.add_argument('-t', '--type', help='estimator type', type=str, required=True, choices=ESTIMATORS.keys())
+        p.add_argument('-wi', '--window', help='context window size', type=int, required=True)
+
 
     args = parser.parse_args()
     infile = args.input_file if args.input_file is not None else sys.stdin
@@ -66,7 +71,8 @@ def main():
             'window_size': args.window,
             'name_model': args.model, 
             'word_embeddings_file': args.word_embeddings,
-            'reader_file': args.reader_file
+            'reader_file': args.reader_file,
+            'optimizer': OPTIMIZERS[args.optimizer]
         }
 
         classifier = WordEmbeddingsClassifier(reader, extractors, ESTIMATORS[args.type], **params)
@@ -80,7 +86,6 @@ def main():
         extractors = []
         params = {
             'window_size': args.window,
-            'learning_rate': args.learning_rate,
             'name_model': args.model,
             'word_embeddings_file': args.word_embeddings,
             'reader_file': args.reader_file

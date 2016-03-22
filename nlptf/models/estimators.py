@@ -2,6 +2,8 @@
 
 import tensorflow as tf
 import numpy as np
+from tensorflow.models.rnn import rnn, rnn_cell
+
 
 class Estimator(object):
 
@@ -141,7 +143,7 @@ class LinearEstimator(Estimator):
 
 class WordEmbeddingsEstimator(Estimator):
 
-    def __init__(self, name_model, window_size, word_embeddings, epochs=None, num_labels=None, learning_rate=None, num_feats=None):
+    def __init__(self, name_model, window_size, word_embeddings, epochs=None, num_labels=None, learning_rate=None, num_feats=None, optimizer=None):
         self.epochs = epochs 
         self.num_feats = num_feats
         self.num_labels = num_labels
@@ -149,6 +151,7 @@ class WordEmbeddingsEstimator(Estimator):
         self.window_size = window_size
         self.name_model = name_model
         self.word_embeddings = word_embeddings
+        self.optimizer_type = optimizer
         self.set_model()
 
 
@@ -180,7 +183,8 @@ class WordEmbeddingsEstimator(Estimator):
             self.dev_prediction = tf.nn.softmax(tf.matmul(tf.reshape(self.embedded_words_dev, (-1, self.window_size*self.word_embeddings.size)), self.weights) + self.bias)
 
             # Optimizer.
-            self.optimizer = tf.train.GradientDescentOptimizer(self.learning_rate).minimize(self.loss)
+            if self.optimizer_type is not None:
+                self.optimizer = self.optimizer_type(self.learning_rate).minimize(self.loss)
 
             self.saver = tf.train.Saver()
 
@@ -200,12 +204,10 @@ class WordEmbeddingsEstimator(Estimator):
 
                     _, loss, predictions = session.run([self.optimizer, self.loss, self.predictions], feed_dict)
 
-                    if i % 1000 == 0:
-                        
+                    if i % 1000 == 0:                        
                         print '\tstep', i, 'loss %f' % loss
                         print '\taccuracy %f' % self.accuracy(predictions, y[i])
                 
-
                 # validation
                 cembeddings_dev = []
                 labels_dev = []
@@ -231,8 +233,8 @@ class WordEmbeddingsEstimator(Estimator):
 
 class ConvWordEmbeddingsEstimator(WordEmbeddingsEstimator):
 
-    def __init__(self, name_model, window_size, word_embeddings, epochs=None, num_labels=None, learning_rate=None, num_feats=None):
-        super(ConvWordEmbeddingsEstimator, self).__init__(name_model, window_size, word_embeddings, epochs, num_labels, learning_rate, num_feats)
+    def __init__(self, name_model, window_size, word_embeddings, epochs=None, num_labels=None, learning_rate=None, num_feats=None, optimizer=None):
+        super(ConvWordEmbeddingsEstimator, self).__init__(name_model, window_size, word_embeddings, epochs, num_labels, learning_rate, num_feats, optimizer)
 
     def set_model(self):
         # define the graph
@@ -293,12 +295,6 @@ class ConvWordEmbeddingsEstimator(WordEmbeddingsEstimator):
 
 
             with tf.name_scope("conv-layer2"):
-                # filters2 = tf.get_variable('filters2', [self.window_size,
-                #                                        n_filters, 
-                #                                        pool1.get_shape()[3],
-                #                                        n_filters], 
-                #                            tf.float32)
-
                 filters2 = tf.get_variable('filters2', [1,
                                                        n_filters, 
                                                        pool1.get_shape()[3],
@@ -335,7 +331,10 @@ class ConvWordEmbeddingsEstimator(WordEmbeddingsEstimator):
                 correct_predictions = tf.equal(self.predictions, tf.argmax(self.y, 1))
                 self.accuracy = tf.reduce_mean(tf.cast(correct_predictions, "float"), name="accuracy")
 
-            self.optimizer = tf.train.AdamOptimizer(self.learning_rate).minimize(self.loss)
+
+            if self.optimizer_type is not None:
+                self.optimizer = self.optimizer_type(self.learning_rate).minimize(self.loss)
+
             self.saver = tf.train.Saver()
 
 
@@ -385,12 +384,10 @@ class ConvWordEmbeddingsEstimator(WordEmbeddingsEstimator):
             return y_hat            
 
 
-from tensorflow.models.rnn import rnn, rnn_cell
-
 class RNNWordEmbeddingsEstimator(WordEmbeddingsEstimator):
 
-    def __init__(self, name_model, window_size, word_embeddings, epochs=None, num_labels=None, learning_rate=None, num_feats=None):
-        super(RNNWordEmbeddingsEstimator, self).__init__(name_model, window_size, word_embeddings, epochs, num_labels, learning_rate, num_feats)
+    def __init__(self, name_model, window_size, word_embeddings, epochs=None, num_labels=None, learning_rate=None, num_feats=None, optimizer=None):
+        super(RNNWordEmbeddingsEstimator, self).__init__(name_model, window_size, word_embeddings, epochs, num_labels, learning_rate, num_feats, optimizer)
 
     def set_model(self):
         # define the graph
@@ -408,28 +405,21 @@ class RNNWordEmbeddingsEstimator(WordEmbeddingsEstimator):
 
             self.embedded_words = tf.nn.embedding_lookup(self.embeddings, self.X)
 
-            # shape = tf.shape(self.X)
-            # ids_flat = tf.reshape(self.X, tf.reduce_prod(shape, keep_dims=True))
-            # embeds_flat = tf.nn.embedding_lookup(self.embeddings, ids_flat)
-            # embed_shape = tf.concat(0, [shape, [-1]])
-            # embeds = tf.reshape(embeds_flat, embed_shape)
-            # embeds.set_shape(self.X.get_shape().concatenate(self.embeddings.get_shape()[1:]))
-
             word_list =  [tf.squeeze(t, squeeze_dims=[1]) for t in tf.split(1, 5, self.embedded_words)]
             cell = rnn_cell.GRUCell(self.word_embeddings.size)
             _, encoding = rnn.rnn(cell, word_list, dtype=tf.float32)
 
             self.predictions, self.loss, self.logits, self.weights, self.bias = self.logistic_regression(encoding, self.y)
             self.predictions = tf.argmax(self.predictions, 1)
-
             
             # Accuracy
             with tf.name_scope("accuracy"):
                 correct_predictions = tf.equal(self.predictions, tf.argmax(self.y, 1))
                 self.accuracy = tf.reduce_mean(tf.cast(correct_predictions, "float"), name="accuracy")
 
-            # Optimizer.
-            self.optimizer = tf.train.AdamOptimizer(self.learning_rate).minimize(self.loss)
+            if self.optimizer_type is not None:
+                self.optimizer = self.optimizer_type(self.learning_rate).minimize(self.loss)
+
 
             self.saver = tf.train.Saver()
 
