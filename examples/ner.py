@@ -7,7 +7,7 @@ sys.path.append('../nlptf')
 import argparse
 
 from nlptf.reader import IOBReader, Word2VecReader
-from nlptf.models.estimators import WordEmbeddingsEstimator, ConvWordEmbeddingsEstimator, RNNWordEmbeddingsEstimator
+from nlptf.models.estimators import WordEmbeddingsEstimator, ConvWordEmbeddingsEstimator, RNNWordEmbeddingsEstimator, MultiRNNWordEmbeddingsEstimator
 from nlptf.classifier.classifier import WordEmbeddingsClassifier
 
 import tensorflow as tf
@@ -15,7 +15,8 @@ import tensorflow as tf
 ESTIMATORS = {
     'linear': WordEmbeddingsEstimator,
     'conv': ConvWordEmbeddingsEstimator,
-    'rnn': RNNWordEmbeddingsEstimator
+    'rnn': RNNWordEmbeddingsEstimator,
+    'multirnn': MultiRNNWordEmbeddingsEstimator
 }
 
 OPTIMIZERS = {
