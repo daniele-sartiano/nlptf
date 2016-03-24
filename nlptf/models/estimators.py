@@ -405,7 +405,7 @@ class RNNWordEmbeddingsEstimator(WordEmbeddingsEstimator):
 
             self.embedded_words = tf.nn.embedding_lookup(self.embeddings, self.X)
 
-            word_list =  [tf.squeeze(t, squeeze_dims=[1]) for t in tf.split(1, 5, self.embedded_words)]
+            word_list =  [tf.squeeze(t, squeeze_dims=[1]) for t in tf.split(1, self.window_size, self.embedded_words)]
             cell = rnn_cell.GRUCell(self.word_embeddings.size)
             _, encoding = rnn.rnn(cell, word_list, dtype=tf.float32)
 
@@ -469,6 +469,50 @@ class RNNWordEmbeddingsEstimator(WordEmbeddingsEstimator):
             y_hat = session.run(self.predictions, {self.X: cembeddings})
             return y_hat            
             
+
+class MultiRNNWordEmbeddingsEstimator(RNNWordEmbeddingsEstimator):
+
+    def __init__(self, name_model, window_size, word_embeddings, epochs=None, num_labels=None, learning_rate=None, num_feats=None, optimizer=None):
+        super(MultiRNNWordEmbeddingsEstimator, self).__init__(name_model, window_size, word_embeddings, epochs, num_labels, learning_rate, num_feats, optimizer)
+
+
+    def set_model(self):
+
+        num_layers = 3 #TODO: params
+
+        # define the graph
+        self.graph = tf.Graph()
+        with self.graph.as_default():
+
+            # Embeddings Layer
+            self.X = tf.placeholder(tf.int32, shape=(None, self.window_size), name='trainset')
+            self.y = tf.placeholder(tf.float32, shape=(None, self.num_labels), name='labels')
+
+            if self.word_embeddings.vectors:
+                self.embeddings = tf.Variable(self.word_embeddings.matrix, name="embedding")
+            else:
+                self.embeddings = tf.Variable(tf.random_uniform([self.word_embeddings.number, self.word_embeddings.size], -1.0, 1.0), name="embedding")
+
+            self.embedded_words = tf.nn.embedding_lookup(self.embeddings, self.X)
+
+            word_list =  [tf.squeeze(t, squeeze_dims=[1]) for t in tf.split(1, self.window_size, self.embedded_words)]
+            grucell = rnn_cell.GRUCell(self.word_embeddings.size)
+            cell = tf.nn.rnn_cell.MultiRNNCell([grucell] * num_layers)
+            _, encoding = tf.nn.rnn(cell, word_list, dtype=tf.float32)
+
+            self.predictions, self.loss, self.logits, self.weights, self.bias = self.logistic_regression(encoding, self.y)
+            self.predictions = tf.argmax(self.predictions, 1)
+            
+            # Accuracy
+            with tf.name_scope("accuracy"):
+                correct_predictions = tf.equal(self.predictions, tf.argmax(self.y, 1))
+                self.accuracy = tf.reduce_mean(tf.cast(correct_predictions, "float"), name="accuracy")
+
+            if self.optimizer_type is not None:
+                self.optimizer = self.optimizer_type(self.learning_rate).minimize(self.loss)
+
+
+            self.saver = tf.train.Saver()
 
 
 # class ConvEstimatorWE(Estimator):
