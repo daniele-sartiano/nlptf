@@ -7,7 +7,7 @@ sys.path.append('../nlptf')
 import argparse
 
 from nlptf.reader import IOBReader, Word2VecReader
-from nlptf.models.estimators import WordEmbeddingsEstimator, ConvWordEmbeddingsEstimator, RNNWordEmbeddingsEstimator, MultiRNNWordEmbeddingsEstimator, WordEmbeddingsWithFeatsEstimator
+from nlptf.models.estimators import WordEmbeddingsEstimator, ConvWordEmbeddingsEstimator, RNNWordEmbeddingsEstimator, MultiRNNWordEmbeddingsEstimator
 from nlptf.extractors import FieldExtractor, CapitalExtractor
 from nlptf.classifier.classifier import WordEmbeddingsClassifier
 
@@ -17,8 +17,7 @@ ESTIMATORS = {
     'linear': WordEmbeddingsEstimator,
     'conv': ConvWordEmbeddingsEstimator,
     'rnn': RNNWordEmbeddingsEstimator,
-    'multirnn': MultiRNNWordEmbeddingsEstimator,
-    'linear+feats': WordEmbeddingsWithFeatsEstimator
+    'multirnn': MultiRNNWordEmbeddingsEstimator
 }
 
 OPTIMIZERS = {
@@ -49,7 +48,8 @@ def main():
         p.add_argument('-t', '--type', help='estimator type', type=str, required=True, choices=ESTIMATORS.keys())
         p.add_argument('-wi', '--window', help='context window size', type=int, required=True)
         p.add_argument('-nl', '--num-layers', help='number layers for multi rnn estimator', type=int, required=False)
-
+        p.add_argument('-f', '--feats-conf', help='add the feats in the conf number', type=int, required=False)
+        
 
     args = parser.parse_args()
     infile = args.input_file if args.input_file is not None else sys.stdin
@@ -67,7 +67,7 @@ def main():
         reader = IOBReader(infile, separator='\t', format=f)
 
         extractors = []
-        if args.type == 'linear+feats':
+        if args.feats_conf is not None and args.feats_conf != 0:
             extractors = [
                 FieldExtractor(reader.getPosition('FORM')), 
                 FieldExtractor(reader.getPosition('POS')),
@@ -94,7 +94,7 @@ def main():
         reader = IOBReader(lines)
 
         extractors = []
-        if args.type == 'linear+feats':
+        if args.feats_conf is not None and args.feats_conf != 0:
             extractors = [
                 FieldExtractor(reader.getPosition('FORM')), 
                 FieldExtractor(reader.getPosition('POS')),

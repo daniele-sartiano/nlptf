@@ -143,7 +143,7 @@ class LinearEstimator(Estimator):
 
 class WordEmbeddingsEstimator(Estimator):
 
-    def __init__(self, name_model, window_size, word_embeddings, epochs=None, num_labels=None, learning_rate=None, num_feats=None, optimizer=None):
+    def __init__(self, name_model, window_size, word_embeddings, epochs=None, num_labels=None, learning_rate=None, num_feats=0, optimizer=None):
         self.epochs = epochs 
         self.num_feats = num_feats
         self.num_labels = num_labels
@@ -160,9 +160,13 @@ class WordEmbeddingsEstimator(Estimator):
         self.graph = tf.Graph()
         with self.graph.as_default():
             # Embeddings Layer
-            self.X = tf.placeholder(tf.int32, shape=(None, self.window_size), name='trainset')
+            self.X = tf.placeholder(tf.int32, shape=(None, self.window_size), name='trainset_embeddings')
             self.y = tf.placeholder(tf.float32, shape=(None, self.num_labels), name='labels')
-            self.dev_X = tf.placeholder(tf.int32, name='devset')
+
+            self.features = tf.placeholder(tf.float32, shape=(None, self.num_feats*self.window_size), name='trainset_feats')
+
+            self.dev_X = tf.placeholder(tf.int32, name='devset_embeddings')
+            self.dev_features = tf.placeholder(tf.float32, name='devset_feats')
 
             if self.word_embeddings.vectors:
                 self.embeddings = tf.Variable(self.word_embeddings.matrix, name="embedding")
@@ -173,14 +177,23 @@ class WordEmbeddingsEstimator(Estimator):
 
             self.embedded_words_reshaped = tf.reshape(self.embedded_words, (-1, self.window_size*self.word_embeddings.size))
 
+            # Adding other features
+            if self.num_feats:
+                self.embedded_words_reshaped = tf.concat(1, [self.embedded_words_reshaped, self.features])
+
             # logistic regression
             self.predictions, self.loss, self.logits, self.weights, self.bias = self.logistic_regression(self.embedded_words_reshaped, self.y)
 
             self.predict_labels = tf.argmax(self.logits, 1, name="predictions")
 
             self.embedded_words_dev = tf.nn.embedding_lookup(self.embeddings, self.dev_X)
+            self.embedded_words_reshaped_dev = tf.reshape(self.embedded_words_dev, (-1, self.window_size*self.word_embeddings.size))
 
-            self.dev_prediction = tf.nn.softmax(tf.matmul(tf.reshape(self.embedded_words_dev, (-1, self.window_size*self.word_embeddings.size)), self.weights) + self.bias)
+            # Adding other features
+            if self.num_feats:
+                self.embedded_words_reshaped_dev = tf.concat(1, [self.embedded_words_reshaped_dev, self.dev_features])
+            
+            self.dev_prediction = tf.nn.softmax(tf.matmul(self.embedded_words_reshaped_dev, self.weights) + self.bias)
 
             # Optimizer.
             if self.optimizer_type is not None:
@@ -196,25 +209,45 @@ class WordEmbeddingsEstimator(Estimator):
 
             for step in xrange(self.epochs):
                 for i in xrange(len(X)):
-                    cembeddings = self.extractWindow(X[i], self.window_size, [self.word_embeddings.padding])
+                    cfeatures = []
+                    embeddings, features = X[i]
+                    cembeddings = self.extractWindow(embeddings, self.window_size, [self.word_embeddings.padding])
+
                     feed_dict = {
-                        self.X: cembeddings, 
+                        self.X: cembeddings,
                         self.y: y[i]
                     }
 
-                    _, loss, predictions = session.run([self.optimizer, self.loss, self.predictions], feed_dict)
+                    if self.num_feats:
+                        PAD = [-1]*len(features[0])
+                        cfeatures = self.extractWindow(features, self.window_size, [PAD])
+                        feed_dict[self.features] = cfeatures
 
+                    _, loss, predictions, reshaped = session.run([self.optimizer, self.loss, self.predictions, self.embedded_words_reshaped], feed_dict)
+                    
                     if i % 1000 == 0:                        
                         print '\tstep', i, 'loss %f' % loss
                         print '\taccuracy %f' % self.accuracy(predictions, y[i])
                 
                 # validation
                 cembeddings_dev = []
+                cfeatures_dev = []
                 labels_dev = []
+                
                 for i in xrange(len(dev_X)):
-                    cembeddings_dev += self.extractWindow(dev_X[i], self.window_size, [self.word_embeddings.padding])
+                    embeddings_dev, features_dev = dev_X[i]
+                    cembeddings_dev += self.extractWindow(embeddings_dev, self.window_size, [self.word_embeddings.padding])
+                    if self.num_feats:
+                        PAD = [-1]*len(features_dev[0])
+                        cfeatures_dev += self.extractWindow(features_dev, self.window_size, [PAD])
                     labels_dev += list(dev_y[i])
-                pred_y = self.dev_prediction.eval({self.dev_X: cembeddings_dev})
+
+                feed_dict = {
+                    self.dev_X: cembeddings_dev
+                }
+                if self.num_feats:
+                    feed_dict[self.dev_features] = cfeatures_dev
+                pred_y = self.dev_prediction.eval(feed_dict)
                 
                 print 'Epoch %s' % step, self.accuracy(pred_y, labels_dev)
                     
@@ -223,13 +256,24 @@ class WordEmbeddingsEstimator(Estimator):
 
     def predict(self, X):
         cembeddings = []
+        cfeatures = []
+
         with tf.Session(graph=self.graph) as session:
             self.load(session)
             for i in xrange(len(X)):
-                cembeddings += self.extractWindow(X[i], self.window_size, [self.word_embeddings.padding])
-            y_hat = session.run(self.predict_labels, {self.X: cembeddings})
-            return y_hat            
+                embeddings, features = X[i]
+                cembeddings += self.extractWindow(embeddings, self.window_size, [self.word_embeddings.padding])
+                if self.num_feats:
+                    PAD = [-1]*len(features[0])
+                    cfeatures += self.extractWindow(features, self.window_size, [PAD])
 
+            feed_dict = {
+                self.X: cembeddings
+            }
+            if self.num_feats:
+                feed_dict[self.features] = cfeatures
+            y_hat = session.run(self.predict_labels, feed_dict)
+            return y_hat            
 
 class ConvWordEmbeddingsEstimator(WordEmbeddingsEstimator):
 
@@ -511,121 +555,3 @@ class MultiRNNWordEmbeddingsEstimator(RNNWordEmbeddingsEstimator):
                 self.optimizer = self.optimizer_type(self.learning_rate).minimize(self.loss)
 
             self.saver = tf.train.Saver()
-
-
-
-
-class WordEmbeddingsWithFeatsEstimator(Estimator):
-
-    def __init__(self, name_model, window_size, word_embeddings, epochs=None, num_labels=None, learning_rate=None, num_feats=None, optimizer=None):
-        self.epochs = epochs 
-        self.num_feats = num_feats
-        self.num_labels = num_labels
-        self.learning_rate = learning_rate
-        self.window_size = window_size
-        self.name_model = name_model
-        self.word_embeddings = word_embeddings
-        self.optimizer_type = optimizer
-        self.set_model()
-
-
-    def set_model(self):
-        # define the graph
-        self.graph = tf.Graph()
-        with self.graph.as_default():
-            # Embeddings Layer
-            self.X = tf.placeholder(tf.int32, shape=(None, self.window_size), name='trainset_embeddings')
-            self.y = tf.placeholder(tf.float32, shape=(None, self.num_labels), name='labels')
-            self.features = tf.placeholder(tf.float32, shape=(None, self.num_feats*self.window_size), name='trainset_feats')
-
-            self.dev_X = tf.placeholder(tf.int32, name='devset_embeddings')
-            self.dev_features = tf.placeholder(tf.float32, name='devset_feats')
-
-
-            if self.word_embeddings.vectors:
-                self.embeddings = tf.Variable(self.word_embeddings.matrix, name="embedding")
-            else:
-                self.embeddings = tf.Variable(tf.random_uniform([self.word_embeddings.number, self.word_embeddings.size], -1.0, 1.0), name="embedding")
-
-            self.embedded_words = tf.nn.embedding_lookup(self.embeddings, self.X)
-
-            self.embedded_words_reshaped = tf.reshape(self.embedded_words, (-1, self.window_size*self.word_embeddings.size))
-
-            # Adding other features
-            self.embedded_words_reshaped = tf.concat(1, [self.embedded_words_reshaped, self.features])
-
-            # logistic regression
-            self.predictions, self.loss, self.logits, self.weights, self.bias = self.logistic_regression(self.embedded_words_reshaped, self.y)
-
-            self.predict_labels = tf.argmax(self.logits, 1, name="predictions")
-
-            self.embedded_words_dev = tf.nn.embedding_lookup(self.embeddings, self.dev_X)
-            self.embedded_words_reshaped_dev = tf.reshape(self.embedded_words_dev, (-1, self.window_size*self.word_embeddings.size))
-
-            # Adding other features
-            self.embedded_words_reshaped_dev = tf.concat(1, [self.embedded_words_reshaped_dev, self.dev_features])
-            
-            self.dev_prediction = tf.nn.softmax(tf.matmul(self.embedded_words_reshaped_dev, self.weights) + self.bias)
-
-            # Optimizer.
-            if self.optimizer_type is not None:
-                self.optimizer = self.optimizer_type(self.learning_rate).minimize(self.loss)
-
-            self.saver = tf.train.Saver()
-
-
-    def train(self, X, y, dev_X, dev_y):
-        with tf.Session(graph=self.graph) as session:
-
-            session.run(tf.initialize_all_variables())
-
-            for step in xrange(self.epochs):
-                for i in xrange(len(X)):
-                    embeddings, features = X[i]
-                    cembeddings = self.extractWindow(embeddings, self.window_size, [self.word_embeddings.padding])
-                    PAD = [-1]*len(features[0])
-                    cfeatures = self.extractWindow(features, self.window_size, [PAD])
-                    
-                    feed_dict = {
-                        self.X: cembeddings,
-                        self.features: cfeatures,
-                        self.y: y[i]
-                    }
-
-                    _, loss, predictions, reshaped = session.run([self.optimizer, self.loss, self.predictions, self.embedded_words_reshaped], feed_dict)
-                    
-                    if i % 1000 == 0:                        
-                        print '\tstep', i, 'loss %f' % loss
-                        print '\taccuracy %f' % self.accuracy(predictions, y[i])
-                
-                # validation
-                cembeddings_dev = []
-                cfeatures_dev = []
-                labels_dev = []
-                
-                for i in xrange(len(dev_X)):
-                    embeddings_dev, features_dev = dev_X[i]
-                    cembeddings_dev += self.extractWindow(embeddings_dev, self.window_size, [self.word_embeddings.padding])
-                    PAD = [-1]*len(features_dev[0])
-                    cfeatures_dev += self.extractWindow(features_dev, self.window_size, [PAD])
-                    labels_dev += list(dev_y[i])
-                pred_y = self.dev_prediction.eval({self.dev_X: cembeddings_dev, self.dev_features: cfeatures_dev})
-                
-                print 'Epoch %s' % step, self.accuracy(pred_y, labels_dev)
-                    
-            return self.save(session)
-
-
-    def predict(self, X):
-        cembeddings = []
-        cfeatures = []
-
-        with tf.Session(graph=self.graph) as session:
-            self.load(session)
-            for i in xrange(len(X)):
-                embeddings, features = X[i]
-                cembeddings += self.extractWindow(embeddings, self.window_size, [self.word_embeddings.padding])
-                PAD = [-1]*len(features[0])
-                cfeatures += self.extractWindow(features, self.window_size, [PAD])
-            y_hat = session.run(self.predict_labels, {self.X: cembeddings, self.features: cfeatures})
-            return y_hat            
