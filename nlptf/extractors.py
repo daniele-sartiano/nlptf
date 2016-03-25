@@ -18,7 +18,7 @@ class FieldExtractor(Extractor):
             try:
                 feat = vocabulary[token[self.field]]
             except Exception as e:
-                feat = vocabulary['UNK']
+                feat = vocabulary['<unk>']
             feat /= float(len(vocabulary)-1) # normalize
             ret.append(feat)
         return ret
@@ -40,7 +40,7 @@ class CapitalExtractor(FieldExtractor):
             try:
                 feat = vocabulary[token[self.field][0].isupper()]
             except Exception as e:
-                feat = vocabulary['UNK']
+                feat = vocabulary['<unk>']
             feat /= float(len(vocabulary)-1) # normalize
             ret.append(feat)
         return ret

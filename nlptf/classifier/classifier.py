@@ -101,9 +101,14 @@ class WordEmbeddingsClassifier(Classifier):
         if self.word_embeddings is None:
             self.word_embeddings = WordEmbedding(self.reader.vocabulary[self.reader.getPosition('FORM')], [], self.reader.PAD, self.reader.UNK)
 
+
         for sentence, listLabels in zip(sentences, labels):
+            feats = []
+            for extractor in self.extractors:
+                feats.append(extractor.extract(sentence, self.reader.vocabulary))
+
             y.append(self.labelExtractor.extract(listLabels, self.reader.vocabulary))
-            X.append([self.word_embeddings.w2idx(t[self.reader.getPosition('FORM')]) for t in sentence])
+            X.append(([self.word_embeddings.w2idx(t[self.reader.getPosition('FORM')]) for t in sentence], [el for el in zip(*feats)]))
 
         pickle.dump(self.reader.dump(), open(self.reader_file, 'wb'))
 
@@ -151,8 +156,13 @@ class WordEmbeddingsClassifier(Classifier):
         if self.word_embeddings is None:
             self.word_embeddings = WordEmbedding(self.reader.vocabulary[self.reader.getPosition('FORM')], [], self.reader.PAD, self.reader.UNK)
 
+
         for sentence in sentences:
-            X.append([self.word_embeddings.w2idx(t[self.reader.getPosition('FORM')]) for t in sentence])
+            feats = []
+            for extractor in self.extractors:
+                feats.append(extractor.extract(sentence, self.reader.vocabulary))
+            X.append(([self.word_embeddings.w2idx(t[self.reader.getPosition('FORM')]) for t in sentence], [el for el in zip(*feats)]))
+
 
         params = {
             'epochs' : self.epochs,

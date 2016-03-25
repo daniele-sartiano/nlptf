@@ -7,7 +7,8 @@ sys.path.append('../nlptf')
 import argparse
 
 from nlptf.reader import IOBReader, Word2VecReader
-from nlptf.models.estimators import WordEmbeddingsEstimator, ConvWordEmbeddingsEstimator, RNNWordEmbeddingsEstimator, MultiRNNWordEmbeddingsEstimator
+from nlptf.models.estimators import WordEmbeddingsEstimator, ConvWordEmbeddingsEstimator, RNNWordEmbeddingsEstimator, MultiRNNWordEmbeddingsEstimator, WordEmbeddingsWithFeatsEstimator
+from nlptf.extractors import FieldExtractor, CapitalExtractor
 from nlptf.classifier.classifier import WordEmbeddingsClassifier
 
 import tensorflow as tf
@@ -16,7 +17,8 @@ ESTIMATORS = {
     'linear': WordEmbeddingsEstimator,
     'conv': ConvWordEmbeddingsEstimator,
     'rnn': RNNWordEmbeddingsEstimator,
-    'multirnn': MultiRNNWordEmbeddingsEstimator
+    'multirnn': MultiRNNWordEmbeddingsEstimator,
+    'linear+feats': WordEmbeddingsWithFeatsEstimator
 }
 
 OPTIMIZERS = {
@@ -63,7 +65,14 @@ def main():
         }
         
         reader = IOBReader(infile, separator='\t', format=f)
+
         extractors = []
+        if args.type == 'linear+feats':
+            extractors = [
+                FieldExtractor(reader.getPosition('FORM')), 
+                FieldExtractor(reader.getPosition('POS')),
+                CapitalExtractor(reader.getPosition('FORM'))
+            ]
 
         params = {
             'epochs': args.epochs,
@@ -85,6 +94,13 @@ def main():
         reader = IOBReader(lines)
 
         extractors = []
+        if args.type == 'linear+feats':
+            extractors = [
+                FieldExtractor(reader.getPosition('FORM')), 
+                FieldExtractor(reader.getPosition('POS')),
+                CapitalExtractor(reader.getPosition('FORM'))
+            ]
+        
         params = {
             'window_size': args.window,
             'name_model': args.model,
@@ -96,6 +112,8 @@ def main():
         classifier = WordEmbeddingsClassifier(reader, extractors, ESTIMATORS[args.type], **params)
 
         predicted = classifier.predict()
+
+        print >> sys.stderr, len(predicted), len(lines)
         labels_idx_rev = {v:k for k,v in reader.vocabulary[reader.getPosition('LABEL')].items()}
 
         i = 0
