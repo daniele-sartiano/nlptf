@@ -81,10 +81,14 @@ class Classifier(object):
 
 
 class WordEmbeddingsClassifier(Classifier):
-    def __init__(self, reader, extractors, estimator, name_model, window_size, reader_file='reader.pkl', word_embeddings_file=None, epochs=None, learning_rate=None, optimizer=None):
+    def __init__(self, reader, extractors, estimator, name_model, window_size, reader_file='reader.pkl', word_embeddings_file=None, epochs=None, learning_rate=None, optimizer=None, num_layers=None):
         
         super(WordEmbeddingsClassifier, self).__init__(reader, extractors, estimator, epochs, learning_rate, window_size, name_model, reader_file, optimizer)
+
+        self.num_layers = num_layers
+
         self.word_embeddings = None
+
         if word_embeddings_file is not None:
             self.word_embeddings = Word2VecReader(open(word_embeddings_file)).read()
 
@@ -108,18 +112,25 @@ class WordEmbeddingsClassifier(Classifier):
         train_labels = y[int(len(X)*0.3):]
         
         dev_dataset = X[0:int(len(X)*0.3)]
-        dev_labels = y[0:int(len(X)*0.3)]
-                
-        self.estimator = self.estimator(
-            epochs = self.epochs,
-            num_labels = len(self.reader.vocabulary[self.reader.getPosition('LABEL')]),
-            learning_rate = self.learning_rate,
-            window_size = self.window_size,
-            num_feats= len(self.extractors), 
-            name_model = self.name_model,
-            word_embeddings = self.word_embeddings,
-            optimizer=self.optimizer_type
-        )
+        dev_labels = y[0:int(len(X)*0.3)]                
+
+        params = {
+            'epochs' : self.epochs,
+            'num_labels' : len(self.reader.vocabulary[self.reader.getPosition('LABEL')]),
+            'learning_rate' : self.learning_rate,
+            'window_size' : self.window_size,
+            'num_feats' : len(self.extractors), 
+            'name_model' : self.name_model,
+            'word_embeddings' : self.word_embeddings,
+            'optimizer' : self.optimizer_type
+
+        }
+        
+        # TODO: check if multi layer rnn
+        if self.num_layers is not None:
+            params['num_layers'] = self.num_layers
+
+        self.estimator = self.estimator(**params)
 
         path = self.estimator.train(
             X= train_dataset,
@@ -143,15 +154,21 @@ class WordEmbeddingsClassifier(Classifier):
         for sentence in sentences:
             X.append([self.word_embeddings.w2idx(t[self.reader.getPosition('FORM')]) for t in sentence])
 
-        self.estimator = self.estimator(
-            epochs = self.epochs,
-            num_labels = len(self.reader.vocabulary[self.reader.getPosition('LABEL')]),
-            learning_rate = self.learning_rate,
-            window_size = self.window_size,
-            num_feats= len(self.extractors), 
-            name_model = self.name_model,
-            word_embeddings = self.word_embeddings
-        )
+        params = {
+            'epochs' : self.epochs,
+            'num_labels' : len(self.reader.vocabulary[self.reader.getPosition('LABEL')]),
+            'learning_rate' : self.learning_rate,
+            'window_size' : self.window_size,
+            'num_feats' : len(self.extractors), 
+            'name_model' : self.name_model,
+            'word_embeddings' : self.word_embeddings
+        }
+
+        # TODO: check if multi layer rnn
+        if self.num_layers is not None:
+            params['num_layers'] = self.num_layers
+                
+        self.estimator = self.estimator(**params)
 
         predicted = self.estimator.predict(X)
         return predicted

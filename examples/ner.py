@@ -37,8 +37,6 @@ def main():
     parser_tag = subparsers.add_parser('tag')
     parser_tag.set_defaults(which='tag')
 
-    #parser_tag.add_argument('-l', '--learning-rate', help='learning rate', type=float, required=True)
-
     # common arguments
     for p in (parser_train, parser_tag):
         p.add_argument('-m', '--model', help='model-file', type=str, required=True)
@@ -48,6 +46,7 @@ def main():
         p.add_argument('-i', '--input-file', help='input file', type=str, required=False)
         p.add_argument('-t', '--type', help='estimator type', type=str, required=True, choices=ESTIMATORS.keys())
         p.add_argument('-wi', '--window', help='context window size', type=int, required=True)
+        p.add_argument('-nl', '--num-layers', help='number layers for multi rnn estimator', type=int, required=False)
 
 
     args = parser.parse_args()
@@ -73,7 +72,8 @@ def main():
             'name_model': args.model, 
             'word_embeddings_file': args.word_embeddings,
             'reader_file': args.reader_file,
-            'optimizer': OPTIMIZERS[args.optimizer]
+            'optimizer': OPTIMIZERS[args.optimizer],
+            'num_layers': args.num_layers
         }
 
         classifier = WordEmbeddingsClassifier(reader, extractors, ESTIMATORS[args.type], **params)
@@ -89,7 +89,8 @@ def main():
             'window_size': args.window,
             'name_model': args.model,
             'word_embeddings_file': args.word_embeddings,
-            'reader_file': args.reader_file
+            'reader_file': args.reader_file,
+            'num_layers': args.num_layers
         }
 
         classifier = WordEmbeddingsClassifier(reader, extractors, ESTIMATORS[args.type], **params)
