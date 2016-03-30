@@ -296,12 +296,11 @@ class ConvWordEmbeddingsEstimator(WordEmbeddingsEstimator):
 
             with tf.name_scope("conv-layer1"):
                 # Convolution Layer
-                #W = tf.Variable(tf.truncated_normal(filter_shape, stddev=0.1), name="W")
                 n_filters = 128
                 pooling_window = 1
                 pooling_strides = 1
 
-                #[filter_height, filter_width, in_channels, out_channels]
+                # [filter_height, filter_width, in_channels, out_channels]
                 filters1 = tf.get_variable('filters1', 
                                            [self.window_size,
                                             self.word_embeddings.size, 
@@ -374,52 +373,6 @@ class ConvWordEmbeddingsEstimator(WordEmbeddingsEstimator):
             self.saver = tf.train.Saver()
 
 
-    # def train(self, X, y, dev_X, dev_y):
-    #     with tf.Session(graph=self.graph) as session:
-
-    #         session.run(tf.initialize_all_variables())
-
-    #         for step in xrange(self.epochs):
-    #             for i in xrange(len(X)):
-    #                 cembeddings = self.extractWindow(X[i], self.window_size, [self.word_embeddings.padding])
-    #                 feed_dict = {
-    #                     self.X: cembeddings, 
-    #                     self.y: y[i]
-    #                 }
-    #                 _, loss, accuracy = session.run([self.optimizer, self.loss, self.accuracy], feed_dict)
-
-    #                 if i % 1000 == 0:
-    #                     print '\tstep', i, 'loss %f' % loss
-    #                     print '\taccuracy %f' % accuracy #self.accuracy(predictions, y[i])
-                
-    #             # validation
-    #             cembeddings_dev = []
-    #             labels_dev = []
-    #             for i in xrange(len(dev_X)):
-    #                 cembeddings_dev += self.extractWindow(dev_X[i], self.window_size, [self.word_embeddings.padding])
-    #                 labels_dev += list(dev_y[i])
-                
-    #             feed_dict = {
-    #                 self.X: cembeddings_dev, 
-    #                 self.y: labels_dev
-    #             }
-
-    #             loss, accuracy = session.run([self.loss, self.accuracy], feed_dict)
-    #             print 'Epoch %s' % step, 'loss', loss, 'accuracy', accuracy
-                    
-    #         return self.save(session)
-
-
-    # def predict(self, X):
-    #     cembeddings = []
-    #     with tf.Session(graph=self.graph) as session:
-    #         self.load(session)
-    #         for i in xrange(len(X)):
-    #             cembeddings += self.extractWindow(X[i], self.window_size, [self.word_embeddings.padding])
-    #         y_hat = session.run(self.predictions, {self.X: cembeddings})
-    #         return y_hat            
-
-
 class RNNWordEmbeddingsEstimator(WordEmbeddingsEstimator):
 
     def __init__(self, name_model, window_size, word_embeddings, epochs=None, num_labels=None, learning_rate=None, num_feats=None, optimizer=None):
@@ -451,52 +404,6 @@ class RNNWordEmbeddingsEstimator(WordEmbeddingsEstimator):
 
             self.saver = tf.train.Saver()
 
-
-    # def train(self, X, y, dev_X, dev_y):
-    #     with tf.Session(graph=self.graph) as session:
-
-    #         session.run(tf.initialize_all_variables())
-
-    #         for step in xrange(self.epochs):
-    #             for i in xrange(len(X)):
-    #                 cembeddings = self.extractWindow(X[i], self.window_size, [self.word_embeddings.padding])
-    #                 feed_dict = {
-    #                     self.X: cembeddings, 
-    #                     self.y: y[i]
-    #                 }
-    #                 _, loss, predictions, accuracy = session.run([self.optimizer, self.loss, self.predictions, self.accuracy], feed_dict)
-
-    #                 if i % 1000 == 0:
-    #                     print '\tstep', i, 'loss %f' % loss
-    #                     print '\taccuracy %f' % accuracy #self.accuracy(predictions, y[i])
-                
-    #             # validation
-    #             cembeddings_dev = []
-    #             labels_dev = []
-    #             for i in xrange(len(dev_X)):
-    #                 cembeddings_dev += self.extractWindow(dev_X[i], self.window_size, [self.word_embeddings.padding])
-    #                 labels_dev += list(dev_y[i])
-                
-    #             feed_dict = {
-    #                 self.X: cembeddings_dev, 
-    #                 self.y: labels_dev
-    #             }
-
-    #             loss, accuracy = session.run([self.loss, self.accuracy], feed_dict)
-    #             print 'Epoch %s' % step, 'loss', loss, 'accuracy', accuracy
-                    
-    #         return self.save(session)
-
-
-    # def predict(self, X):
-    #     cembeddings = []
-    #     with tf.Session(graph=self.graph) as session:
-    #         self.load(session)
-    #         for i in xrange(len(X)):
-    #             cembeddings += self.extractWindow(X[i], self.window_size, [self.word_embeddings.padding])
-    #         y_hat = session.run(self.predictions, {self.X: cembeddings})
-    #         return y_hat            
-            
 
 class MultiRNNWordEmbeddingsEstimator(RNNWordEmbeddingsEstimator):
 
