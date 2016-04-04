@@ -47,28 +47,19 @@ class Word2VecReader(WordEmbeddingReader):
 
 
 class SentenceReader(Reader):
-    pass
-            
-class IOBReader(SentenceReader):
-    FORMAT = {
-        'fields': [
-            {'position': 0, 'name': 'FORM', 'type': str},
-            {'position': 1, 'name': 'POS', 'type': str},
-            {'position': 2, 'name': 'LABEL', 'type': str}
-        ],
-        'gazetter': {
-            'value': {'position': 0, 'name': 'FORM', 'type': str}, 
-            'type': {'position': 2, 'name': 'LABEL', 'type': str}
-        }
-    }
-
-
     UNK = '<unk>'
     PAD = '<pad>'
 
+    FORMAT = {
+        'fields': [
+            {'position': 0, 'name': 'FORM', 'type': str},
+            {'position': 1, 'name': 'LABEL', 'type': str}
+        ]
+    }
 
-    def __init__(self, input, format=None, separator='\t', vocabulary=None, gazetter=None):
-        '''Construct an IOB Reader.
+
+    def __init__(self, input, format=None, separator='\t', vocabulary=None):
+        '''Build an IOB Reader.
 
         :param input: The input file.
         :param format: A dictionary that describe the format of the input.
@@ -76,7 +67,7 @@ class IOBReader(SentenceReader):
         :param vocabular: Th vocabulary.
         :return: a list of X, y
         '''
-        super(IOBReader, self).__init__(input)
+        super(SentenceReader, self).__init__(input)
         self.format = format if format is not None else self.FORMAT
 
         self.field2pos = {}
@@ -85,18 +76,6 @@ class IOBReader(SentenceReader):
 
         self.separator = separator
         self.vocabulary = {} if vocabulary is None else vocabulary
-
-
-    def dump(self):
-        return [self.format, self.separator, self.vocabulary]
-
-    
-    def load(self, params):
-        self.format, self.separator, self.vocabulary = params
-
-
-    def getPosition(self, fieldName):
-        return self.field2pos[fieldName]
             
 
     def read(self):
@@ -149,3 +128,37 @@ class IOBReader(SentenceReader):
             X.append(tokens_x)
             y.append(tokens_y)
         return X, y
+
+
+    def dump(self):
+        return [self.format, self.separator, self.vocabulary]
+
+    
+    def load(self, params):
+        self.format, self.separator, self.vocabulary = params
+
+
+    def getPosition(self, fieldName):
+        return self.field2pos[fieldName]
+
+            
+class IOBReader(SentenceReader):
+    FORMAT = {
+        'fields': [
+            {'position': 0, 'name': 'FORM', 'type': str},
+            {'position': 1, 'name': 'POS', 'type': str},
+            {'position': 2, 'name': 'LABEL', 'type': str}
+        ]
+    }
+
+
+class WebContentReader(SentenceReader):
+    FORMAT = {
+        'fields': [
+            {'position': 0, 'name': 'DOMAIN', 'type': str},
+            {'position': 1, 'name': 'LABEL', 'type': int},
+            {'position': 2, 'name': 'TEXT', 'type': str}
+        ]
+    }
+    
+        

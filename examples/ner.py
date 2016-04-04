@@ -55,16 +55,7 @@ def main():
     infile = args.input_file if args.input_file is not None else sys.stdin
 
     if args.which == 'train':
-        # we can pass the input format as argument
-        f = {
-            'fields': [
-                {'position': 0, 'name': 'FORM', 'type': str},
-                {'position': 1, 'name': 'POS', 'type': str},
-                {'position': 2, 'name': 'LABEL', 'type': str}
-            ]
-        }
-        
-        reader = IOBReader(infile, separator='\t', format=f)
+        reader = IOBReader(infile, separator='\t')
 
         extractors = []
         if args.feats_conf is not None and args.feats_conf != 0:
