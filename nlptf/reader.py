@@ -46,20 +46,12 @@ class Word2VecReader(WordEmbeddingReader):
         return self.wordembedding
 
 
-class SentenceReader(Reader):
+class TextReader(Reader):
     UNK = '<unk>'
     PAD = '<pad>'
 
-    FORMAT = {
-        'fields': [
-            {'position': 0, 'name': 'FORM', 'type': str},
-            {'position': 1, 'name': 'LABEL', 'type': str}
-        ]
-    }
-
-
     def __init__(self, input, format=None, separator='\t', vocabulary=None):
-        '''Build an IOB Reader.
+        '''Build a Text Reader.
 
         :param input: The input file.
         :param format: A dictionary that describe the format of the input.
@@ -67,7 +59,8 @@ class SentenceReader(Reader):
         :param vocabular: Th vocabulary.
         :return: a list of X, y
         '''
-        super(SentenceReader, self).__init__(input)
+
+        super(TextReader, self).__init__(input)
         self.format = format if format is not None else self.FORMAT
 
         self.field2pos = {}
@@ -76,6 +69,67 @@ class SentenceReader(Reader):
 
         self.separator = separator
         self.vocabulary = {} if vocabulary is None else vocabulary
+
+
+    def dump(self):
+        return [self.format, self.separator, self.vocabulary]
+
+    
+    def load(self, params):
+        self.format, self.separator, self.vocabulary = params
+
+
+    def getPosition(self, fieldName):
+        return self.field2pos[fieldName]
+    
+
+
+class LineReader(TextReader):
+
+    def read(self):
+        examples = []
+        vocabulary = {field['position']: {} for field in self.format['fields']}
+
+        for line in self.input:
+            line = line.strip()
+            if line:
+                elements = line.split(self.separator)
+                n_elements = len(elements)
+                token = {}
+                for field in self.format['fields']:
+                    value = field['type'](elements[field['position']])
+                    token[field['position']] = value
+                    if value not in vocabulary[field['position']]:
+                        vocabulary[field['position']][value] = len(vocabulary[field['position']])
+                examples.append(token)
+
+        if not self.vocabulary:
+            for field in self.format['fields']:
+                if field['name'] != 'LABEL':
+                    vocabulary[field['position']][self.UNK] = len(vocabulary[field['position']])
+                    vocabulary[field['position']][self.PAD] = len(vocabulary[field['position']])
+
+            self.vocabulary = vocabulary
+
+        # Mapping Examples
+        X = []
+        y = []
+        for example in examples:
+            field_sorted = sorted(self.format['fields'], key=lambda x: x['position'])
+            v = [example[f['position']] for f in field_sorted if f['name'] != 'LABEL']
+            X.append(v)
+            y.append(example[self.getPosition('LABEL')])
+        return X, y
+        
+
+class SentenceReader(TextReader):
+
+    FORMAT = {
+        'fields': [
+            {'position': 0, 'name': 'FORM', 'type': str},
+            {'position': 1, 'name': 'LABEL', 'type': str}
+        ]
+    }
             
 
     def read(self):
@@ -129,18 +183,6 @@ class SentenceReader(Reader):
             y.append(tokens_y)
         return X, y
 
-
-    def dump(self):
-        return [self.format, self.separator, self.vocabulary]
-
-    
-    def load(self, params):
-        self.format, self.separator, self.vocabulary = params
-
-
-    def getPosition(self, fieldName):
-        return self.field2pos[fieldName]
-
             
 class IOBReader(SentenceReader):
     FORMAT = {
@@ -152,7 +194,7 @@ class IOBReader(SentenceReader):
     }
 
 
-class WebContentReader(SentenceReader):
+class WebContentReader(LineReader):
     FORMAT = {
         'fields': [
             {'position': 0, 'name': 'DOMAIN', 'type': str},
