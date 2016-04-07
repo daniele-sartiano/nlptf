@@ -49,7 +49,10 @@ class CapitalExtractor(FieldExtractor):
 class LabelExtractor(FieldExtractor):
     def extract(self, labels, vocabulary):
         vocabulary = vocabulary[self.field]
-        ret = []
-        for label in labels:
-            ret.append((np.arange(len(vocabulary)) == vocabulary[label]).astype(np.float32))
+        if isinstance(labels, list):
+            ret = []
+            for label in labels:
+                ret.append((np.arange(len(vocabulary)) == vocabulary[label]).astype(np.float32))
+        else:
+            ret = (np.arange(len(vocabulary)) == vocabulary[labels]).astype(np.float32)
         return ret
