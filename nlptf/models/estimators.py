@@ -155,7 +155,6 @@ class WordEmbeddingsEstimator(Estimator):
         self.set_model()
 
 
-
     def init_vars(self):
         # Embeddings Layer
         self.X = tf.placeholder(tf.int32, shape=(None, self.window_size), name='trainset_embeddings')
@@ -275,6 +274,7 @@ class WordEmbeddingsEstimator(Estimator):
                 feed_dict[self.features] = cfeatures
             y_hat = session.run(self.predictions, feed_dict)
             return y_hat            
+
 
 class ConvWordEmbeddingsEstimator(WordEmbeddingsEstimator):
 
@@ -439,3 +439,220 @@ class MultiRNNWordEmbeddingsEstimator(RNNWordEmbeddingsEstimator):
                 self.optimizer = self.optimizer_type(self.learning_rate).minimize(self.loss)
 
             self.saver = tf.train.Saver()
+
+
+
+
+class WordEmbeddingsEstimatorNC(Estimator):
+
+    def __init__(self, name_model, window_size, word_embeddings, epochs=None, num_labels=None, learning_rate=None, num_feats=0, optimizer=None):
+        self.epochs = epochs 
+        self.num_feats = num_feats
+        self.num_labels = num_labels
+        self.learning_rate = learning_rate
+        self.batch_size = 1
+        self.name_model = name_model
+        self.word_embeddings = word_embeddings
+        self.optimizer_type = optimizer
+        self.set_model()
+
+
+    def init_vars(self):
+        # Embeddings Layer
+        self.X = tf.placeholder(tf.int32, shape=(1, None), name='trainset_embeddings')
+        self.y = tf.placeholder(tf.float32, shape=(1, self.num_labels), name='labels')        
+        self.features = tf.placeholder(tf.float32, shape=(None, self.num_feats*self.batch_size), name='trainset_feats')
+
+        if self.word_embeddings.vectors:
+            self.embeddings = tf.Variable(self.word_embeddings.matrix, name="embedding")
+        else:
+            self.embeddings = tf.Variable(tf.random_uniform([self.word_embeddings.number, self.word_embeddings.size], -1.0, 1.0), name="embedding")
+        
+
+    def set_model(self):
+        # define the graph
+        self.graph = tf.Graph()
+        with self.graph.as_default():
+
+            self.init_vars()
+
+            self.embedded_words = tf.nn.embedding_lookup(self.embeddings, self.X)
+
+            self.embedded_words_reshaped = tf.reshape(self.embedded_words, (-1, self.batch_size*self.word_embeddings.size))
+            self.embedded_words_expanded = tf.expand_dims(self.embedded_words, -1)
+
+
+            with tf.name_scope("conv-layer1"):
+                # Convolution Layer
+                n_filters = 128
+                pooling_window = 1
+                pooling_strides = 1
+                pool_size = 5
+
+                # [filter_height, filter_width, in_channels, out_channels]
+                filters1 = tf.get_variable('filters1', 
+                                           [pool_size,
+                                            self.word_embeddings.size, 
+                                            self.embedded_words_expanded.get_shape()[-1], 
+                                            n_filters], 
+                                           tf.float32)
+
+                conv1 = tf.nn.conv2d(
+                    self.embedded_words_expanded,
+                    filters1,
+                    strides=[1, 1, 1, 1],
+                    padding="VALID",
+                    name="conv1")
+
+                bias1 = tf.get_variable('bias1', [1, 1, 1, n_filters], tf.float32)
+                conv1 = conv1 + bias1
+
+                # Apply nonlinearity
+                conv1 = tf.nn.relu(conv1, name="relu")
+
+                # Maxpooling over the outputs
+                pool1 = tf.nn.max_pool(
+                    conv1,
+                    ksize=[1, pooling_window, 1, 1],
+                    strides=[1, pooling_strides, 1, 1],
+                    padding='SAME',
+                    name="pool")
+                pool1 = tf.transpose(pool1, [0, 1, 3, 2])
+
+            with tf.name_scope("conv-layer2"):
+                filters2 = tf.get_variable('filters2', [1,
+                                                       n_filters, 
+                                                       pool1.get_shape()[3],
+                                                       n_filters], 
+                                           tf.float32)
+
+
+                conv2 = tf.nn.conv2d(
+                    pool1,
+                    filters2,
+                    strides=[1, 1, 1, 1],
+                    padding="VALID",
+                    name="conv2")
+                bias2 = tf.get_variable('bias2', [1, 1, 1, n_filters], tf.float32)
+                conv2 = conv2 + bias2
+                
+                pool2 = tf.squeeze(tf.reduce_max(conv2, 1), squeeze_dims=[1])
+
+            # Final (unnormalized) scores and predictions
+            with tf.name_scope("output"):
+                W = tf.get_variable('W', [pool2.get_shape()[1], self.num_labels])
+                b = tf.get_variable('b', [self.num_labels])
+                self.scores = tf.nn.xw_plus_b(pool2, W, b, name="scores") #logits
+                #self.predictions = tf.argmax(self.scores, 1, name="predictions")
+                self.predictions = tf.argmax(tf.nn.softmax(self.scores), 1, name="predictions")
+
+            # Calculate Mean cross-entropy loss
+            with tf.name_scope("loss"):
+                losses = tf.nn.softmax_cross_entropy_with_logits(self.scores, self.y) #xent
+                self.loss = tf.reduce_mean(losses)
+
+            # Accuracy
+            with tf.name_scope("accuracy"):
+                correct_predictions = tf.equal(self.predictions, tf.argmax(self.y, 1))
+                self.accuracy = tf.reduce_mean(tf.cast(correct_predictions, "float"), name="accuracy")
+
+            if self.optimizer_type is not None:
+                self.optimizer = self.optimizer_type(self.learning_rate).minimize(self.loss)
+
+            self.saver = tf.train.Saver()
+
+            # # Adding other features
+            # if self.num_feats:
+            #     self.embedded_words_reshaped = tf.concat(1, [self.embedded_words_reshaped, self.features])
+
+            # # logistic regression
+            # self.predictions, self.loss, self.logits, self.weights, self.bias = self.logistic_regression(self.embedded_words_reshaped, self.y)
+
+            # self.predictions = tf.argmax(self.predictions, 1, name="predictions")
+            
+            # # Accuracy
+            # with tf.name_scope("accuracy"):
+            #     correct_predictions = tf.equal(self.predictions, tf.argmax(self.y, 1))
+            #     self.accuracy = tf.reduce_mean(tf.cast(correct_predictions, "float"), name="accuracy")
+                
+            # # Optimizer.
+            # if self.optimizer_type is not None:
+            #     self.optimizer = self.optimizer_type(self.learning_rate).minimize(self.loss)
+
+            # self.saver = tf.train.Saver()
+
+
+    def train(self, X, y, dev_X, dev_y):
+        with tf.Session(graph=self.graph) as session:
+
+            session.run(tf.initialize_all_variables())
+
+            for step in xrange(self.epochs):
+                for i in xrange(len(X)):
+                    cfeatures = []
+                    embeddings, features = X[i]
+                    #print embeddings
+
+
+                    feed_dict = {
+                        self.X: [embeddings],
+                        self.y: [y[i]]
+                    }
+
+                    if self.num_feats:
+                        feed_dict[self.features] = features
+
+                    # emb, reshaped = session.run([self.embedded_words, self.embedded_words_reshaped], feed_dict)
+                    # print emb.shape, reshaped.shape
+                    # print emb[0][0]
+                    _, loss, accuracy = session.run([self.optimizer, self.loss, self.accuracy], feed_dict)
+
+                    if i % 1000 == 0:                        
+                        print '\tstep', i, 'loss %f' % loss
+                        print '\taccuracy %f' % (accuracy * 100)
+                
+                # validation
+                embeddings_dev = []
+                features_dev = []
+                labels_dev = []
+                
+                for i in xrange(len(dev_X)):
+                    emb_dev, feats_dev = dev_X[i]
+                    embeddings_dev += emb_dev
+                    features_dev += feats_dev
+                    labels_dev += list(dev_y[i])
+
+                feed_dict = {
+                    self.X: embeddings_dev,
+                    self.y: labels_dev
+                }
+
+                if self.num_feats:
+                    feed_dict[self.features] = features_dev
+
+                loss, accuracy = session.run([self.loss, self.accuracy], feed_dict)
+                print 'Epoch %s' % step, 'loss', loss, 'accuracy', (accuracy * 100)
+                    
+            return self.save(session)
+
+
+    def predict(self, X):
+        cembeddings = []
+        cfeatures = []
+
+        with tf.Session(graph=self.graph) as session:
+            self.load(session)
+            for i in xrange(len(X)):
+                embeddings, features = X[i]
+                cembeddings += self.extractWindow(embeddings, self.window_size, [self.word_embeddings.padding])
+                if self.num_feats:
+                    PAD = [-1]*len(features[0])
+                    cfeatures += self.extractWindow(features, self.window_size, [PAD])
+
+            feed_dict = {
+                self.X: cembeddings
+            }
+            if self.num_feats:
+                feed_dict[self.features] = cfeatures
+            y_hat = session.run(self.predictions, feed_dict)
+            return y_hat            

@@ -118,10 +118,8 @@ class LineReader(TextReader):
             v = {}
             for field in self.format['fields']:
                 if field['name'] != 'LABEL':
-                    v[field['position']] = token[field['position']]
+                    v[field['position']] = example[field['position']]
 
-            # field_sorted = sorted(self.format['fields'], key=lambda x: x['position'])
-            # v = [example[f['position']] for f in field_sorted if f['name'] != 'LABEL']
             X.append(v)
             y.append(example[self.getPosition('LABEL')])
         return X, y
@@ -184,9 +182,6 @@ class SentenceReader(TextReader):
                     if field['name'] != 'LABEL':
                         v[field['position']] = token[field['position']]
 
-                # field_sorted = sorted(self.format['fields'], key=lambda x: x['position'])
-                # v = [token[f['position']] for f in field_sorted if f['name'] != 'LABEL']
-
                 tokens_x.append(v)
                 tokens_y.append(token[self.getPosition('LABEL')])
             X.append(tokens_x)
@@ -228,14 +223,13 @@ class WebContentReader(LineReader):
         X = []
         y = []
         for example, listLabels in zip(examples, labels):
+            # import sys
+            # print >> sys.stderr, 'ex:', example[0]
             feats = []
             for extractor in extractors:
                 feats.append(extractor.extract(example, self.vocabulary))
 
             y.append(labelExtractor.extract(listLabels, self.vocabulary))
             X.append(([wordEmbeddings.w2idx(token) for token in example[self.getPosition('TEXT')]], [el for el in zip(*feats)]))
-            print y
-            print X
-            print
 
         return X, y

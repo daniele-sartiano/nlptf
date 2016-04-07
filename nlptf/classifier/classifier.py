@@ -99,7 +99,16 @@ class WordEmbeddingsClassifier(Classifier):
         if self.word_embeddings is None:
             self.word_embeddings = WordEmbedding(self.reader.vocabulary[self.reader.getPosition('FORM')], [], self.reader.PAD, self.reader.UNK)
 
+        import sys, time
+
+        start = time.time()
+        print >> sys.stderr, 'Starting word to index mapping', start
+
         X, y = self.reader.map2idx(examples, labels, self.extractors, self.label_extractor, self.word_embeddings)
+
+        end = time.time()
+        elapsed = end - start
+        print >> sys.stderr, 'word to index mapping done', 'elapsed', elapsed
 
         pickle.dump(self.reader.dump(), open(self.reader_file, 'wb'))
 
