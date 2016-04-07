@@ -115,8 +115,13 @@ class LineReader(TextReader):
         X = []
         y = []
         for example in examples:
-            field_sorted = sorted(self.format['fields'], key=lambda x: x['position'])
-            v = [example[f['position']] for f in field_sorted if f['name'] != 'LABEL']
+            v = {}
+            for field in self.format['fields']:
+                if field['name'] != 'LABEL':
+                    v[field['position']] = token[field['position']]
+
+            # field_sorted = sorted(self.format['fields'], key=lambda x: x['position'])
+            # v = [example[f['position']] for f in field_sorted if f['name'] != 'LABEL']
             X.append(v)
             y.append(example[self.getPosition('LABEL')])
         return X, y
@@ -174,8 +179,13 @@ class SentenceReader(TextReader):
             tokens_x = []
             tokens_y = []
             for token in sentence:
-                field_sorted = sorted(self.format['fields'], key=lambda x: x['position'])
-                v = [token[f['position']] for f in field_sorted if f['name'] != 'LABEL']
+                v = {}
+                for field in self.format['fields']:
+                    if field['name'] != 'LABEL':
+                        v[field['position']] = token[field['position']]
+
+                # field_sorted = sorted(self.format['fields'], key=lambda x: x['position'])
+                # v = [token[f['position']] for f in field_sorted if f['name'] != 'LABEL']
 
                 tokens_x.append(v)
                 tokens_y.append(token[self.getPosition('LABEL')])
@@ -193,6 +203,17 @@ class IOBReader(SentenceReader):
         ]
     }
 
+    def map2idx(examples, labels, extractors, labelExtractor, wordEmbeddings):
+        X = []
+        y = []
+        for example, listLabels in zip(examples, labels):
+            feats = []
+            for extractor in extractors:
+                feats.append(extractor.extract(example, self.vocabulary))
+            y.append(labelExtractor.extract(listLabels, self.vocabulary))
+            X.append(([wordEmbeddings.w2idx(t[self.getPosition('FORM')]) for t in example], [el for el in zip(*feats)]))
+        return X, y
+
 
 class WebContentReader(LineReader):
     FORMAT = {
@@ -202,5 +223,19 @@ class WebContentReader(LineReader):
             {'position': 2, 'name': 'TEXT', 'type': str}
         ]
     }
-    
-        
+
+    def map2idx(self, examples, labels, extractors, labelExtractor, wordEmbeddings):
+        X = []
+        y = []
+        for example, listLabels in zip(examples, labels):
+            feats = []
+            for extractor in extractors:
+                feats.append(extractor.extract(example, self.vocabulary))
+
+            y.append(labelExtractor.extract(listLabels, self.vocabulary))
+            X.append(([wordEmbeddings.w2idx(token) for token in example[self.getPosition('TEXT')]], [el for el in zip(*feats)]))
+            print y
+            print X
+            print
+
+        return X, y

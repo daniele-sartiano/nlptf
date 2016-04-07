@@ -14,7 +14,7 @@ class Classifier(object):
         self.reader = reader
         self.extractors = extractors
         self.estimator = estimator
-        self.labelExtractor = LabelExtractor(self.reader.getPosition('LABEL'))
+        self.label_extractor = LabelExtractor(self.reader.getPosition('LABEL'))
 
         # estimator params
         self.epochs = epochs 
@@ -57,7 +57,7 @@ class Classifier(object):
             for extractor in self.extractors:
                 feats.append(extractor.extract(sentence, self.reader.vocabulary))
             X.append([el for el in zip(*feats)])
-            y.append(self.labelExtractor.extract(listLabels, self.reader.vocabulary))
+            y.append(self.label_extractor.extract(listLabels, self.reader.vocabulary))
             
         pickle.dump(self.reader.dump(), open(self.reader_file, 'wb'))
 
@@ -81,7 +81,7 @@ class Classifier(object):
 
 
 class WordEmbeddingsClassifier(Classifier):
-    def __init__(self, reader, extractors, estimator, name_model, window_size, reader_file='reader.pkl', word_embeddings_file=None, epochs=None, learning_rate=None, optimizer=None, num_layers=None):
+    def __init__(self, reader, extractors, estimator, name_model, window_size=None, reader_file='reader.pkl', word_embeddings_file=None, epochs=None, learning_rate=None, optimizer=None, num_layers=None):
         
         super(WordEmbeddingsClassifier, self).__init__(reader, extractors, estimator, epochs, learning_rate, window_size, name_model, reader_file, optimizer)
 
@@ -93,22 +93,13 @@ class WordEmbeddingsClassifier(Classifier):
             self.word_embeddings = Word2VecReader(open(word_embeddings_file)).read()
 
     def train(self):
-        sentences, labels = self.reader.read()
-        X = []
-        y = []
+        examples, labels = self.reader.read()
 
         # if there are not wordembeddings assign the vocabulary to the word embeddings
         if self.word_embeddings is None:
             self.word_embeddings = WordEmbedding(self.reader.vocabulary[self.reader.getPosition('FORM')], [], self.reader.PAD, self.reader.UNK)
 
-
-        for sentence, listLabels in zip(sentences, labels):
-            feats = []
-            for extractor in self.extractors:
-                feats.append(extractor.extract(sentence, self.reader.vocabulary))
-
-            y.append(self.labelExtractor.extract(listLabels, self.reader.vocabulary))
-            X.append(([self.word_embeddings.w2idx(t[self.reader.getPosition('FORM')]) for t in sentence], [el for el in zip(*feats)]))
+        X, y = self.reader.map2idx(examples, labels, self.extractors, self.label_extractor, self.word_embeddings)
 
         pickle.dump(self.reader.dump(), open(self.reader_file, 'wb'))
 
