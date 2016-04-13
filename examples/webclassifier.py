@@ -92,6 +92,37 @@ def main():
         classifier = WordEmbeddingsClassifier(reader, [], ESTIMATORS[args.type], **params)
         classifier.train()
 
+    elif args.which == 'tag':
+
+        lines = sys.stdin.readlines()
+        reader = reader = WebContentReader(lines, separator='\t')
+
+        extractors = []
+        
+        params = {
+            'name_model': args.model,
+            'word_embeddings_file': args.word_embeddings,
+            'reader_file': args.reader_file,
+            'num_layers': args.num_layers
+        }
+
+        classifier = WordEmbeddingsClassifier(reader, extractors, ESTIMATORS[args.type], **params)
+
+        predicted = classifier.predict()
+
+        print >> sys.stderr, len(predicted), len(lines)
+        labels_idx_rev = {v:k for k,v in reader.vocabulary[reader.getPosition('LABEL')].items()}
+
+        i = 0
+        for line in lines:
+            line = line.strip()
+            if line:
+                print '%s\t%s' % (line.split()[0], labels_idx_rev[predicted[i]])
+                i += 1
+            else:
+                print
+
+
         
 
 if __name__ == '__main__':

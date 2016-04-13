@@ -114,6 +114,7 @@ class LineReader(TextReader):
         # Mapping Examples
         X = []
         y = []
+        
         for example in examples:
             v = {}
             for field in self.format['fields']:
@@ -222,14 +223,14 @@ class WebContentReader(LineReader):
     def map2idx(self, examples, labels, extractors, labelExtractor, wordEmbeddings):
         X = []
         y = []
-        for example, listLabels in zip(examples, labels):
-            # import sys
-            # print >> sys.stderr, 'ex:', example[0]
+        for i, example in enumerate(examples):
             feats = []
             for extractor in extractors:
                 feats.append(extractor.extract(example, self.vocabulary))
+            
+            if labels:
+                y.append(labelExtractor.extract(labels[i], self.vocabulary))
 
-            y.append(labelExtractor.extract(listLabels, self.vocabulary))
             X.append(([wordEmbeddings.w2idx(token) for token in example[self.getPosition('TEXT')]], [el for el in zip(*feats)]))
 
         return X, y

@@ -99,16 +99,7 @@ class WordEmbeddingsClassifier(Classifier):
         if self.word_embeddings is None:
             self.word_embeddings = WordEmbedding(self.reader.vocabulary[self.reader.getPosition('FORM')], [], self.reader.PAD, self.reader.UNK)
 
-        import sys, time
-
-        start = time.time()
-        print >> sys.stderr, 'Starting word to index mapping', start
-
         X, y = self.reader.map2idx(examples, labels, self.extractors, self.label_extractor, self.word_embeddings)
-
-        end = time.time()
-        elapsed = end - start
-        print >> sys.stderr, 'word to index mapping done', 'elapsed', elapsed
 
         pickle.dump(self.reader.dump(), open(self.reader_file, 'wb'))
 
@@ -148,22 +139,20 @@ class WordEmbeddingsClassifier(Classifier):
 
     def predict(self):
         self.reader.load(pickle.load(open(self.reader_file)))
-        sentences, _ = self.reader.read()
-
+        examples, _ = self.reader.read()
         X = []
 
         # if there are not wordembeddings assign the vocabulary to the word embeddings
         if self.word_embeddings is None:
             self.word_embeddings = WordEmbedding(self.reader.vocabulary[self.reader.getPosition('FORM')], [], self.reader.PAD, self.reader.UNK)
 
-
-        for sentence in sentences:
-            feats = []
-            for extractor in self.extractors:
-                feats.append(extractor.extract(sentence, self.reader.vocabulary))
-            X.append(([self.word_embeddings.w2idx(t[self.reader.getPosition('FORM')]) for t in sentence], [el for el in zip(*feats)]))
+        X, _ = self.reader.map2idx(examples, [], self.extractors, self.label_extractor, self.word_embeddings)
 
 
+        import sys
+        print >> sys.stderr, len(X)
+
+        
         params = {
             'epochs' : self.epochs,
             'num_labels' : len(self.reader.vocabulary[self.reader.getPosition('LABEL')]),

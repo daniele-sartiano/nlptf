@@ -454,13 +454,15 @@ class WordEmbeddingsEstimatorNC(Estimator):
         self.name_model = name_model
         self.word_embeddings = word_embeddings
         self.optimizer_type = optimizer
+        self.max_size = 5000
+
         self.set_model()
 
 
     def init_vars(self):
         # Embeddings Layer
-        self.X = tf.placeholder(tf.int32, shape=(1, None), name='trainset_embeddings')
-        self.y = tf.placeholder(tf.float32, shape=(1, self.num_labels), name='labels')        
+        self.X = tf.placeholder(tf.int32, shape=(None, self.max_size), name='trainset_embeddings')
+        self.y = tf.placeholder(tf.float32, shape=(None, self.num_labels), name='labels')        
         self.features = tf.placeholder(tf.float32, shape=(None, self.num_feats*self.batch_size), name='trainset_feats')
 
         if self.word_embeddings.vectors:
@@ -478,25 +480,31 @@ class WordEmbeddingsEstimatorNC(Estimator):
 
             self.embedded_words = tf.nn.embedding_lookup(self.embeddings, self.X)
 
-            self.embedded_words_reshaped = tf.reshape(self.embedded_words, (-1, self.batch_size*self.word_embeddings.size))
+            #self.embedded_words_reshaped = tf.reshape(self.embedded_words, (-1, self.batch_size*self.word_embeddings.size))
             self.embedded_words_expanded = tf.expand_dims(self.embedded_words, -1)
-
 
             with tf.name_scope("conv-layer1"):
                 # Convolution Layer
-                n_filters = 128
+                #n_filters = 128
+                n_filters = 64
                 pooling_window = 1
                 pooling_strides = 1
                 pool_size = 5
 
                 # [filter_height, filter_width, in_channels, out_channels]
-                filters1 = tf.get_variable('filters1', 
-                                           [pool_size,
-                                            self.word_embeddings.size, 
-                                            self.embedded_words_expanded.get_shape()[-1], 
-                                            n_filters], 
-                                           tf.float32)
+                # filters1 = tf.get_variable('filters1', 
+                #                            [pool_size,
+                #                             self.word_embeddings.size, 
+                #                             self.embedded_words_expanded.get_shape()[-1], 
+                #                             n_filters], 
+                #                            tf.float32)
 
+                # [filter_height, filter_width, in_channels, out_channels]
+                filter_shape = [pool_size, self.word_embeddings.size, 1, n_filters]
+                filters1 = tf.Variable(tf.truncated_normal(filter_shape, stddev=0.1), name='filters1')
+
+
+                # input --> [batch, in_height, in_width, in_channels]
                 conv1 = tf.nn.conv2d(
                     self.embedded_words_expanded,
                     filters1,
@@ -504,31 +512,35 @@ class WordEmbeddingsEstimatorNC(Estimator):
                     padding="VALID",
                     name="conv1")
 
-                bias1 = tf.get_variable('bias1', [1, 1, 1, n_filters], tf.float32)
-                conv1 = conv1 + bias1
+                self.conv1before = conv1
+                #bias1 = tf.get_variable('bias1', [1, 1, 1, n_filters], tf.float32)
+                bias  = tf.Variable(tf.constant(0.1, shape=[n_filters]))
+                #self.conv1bias = conv1 + bias1
+                self.conv1bias = tf.nn.bias_add(conv1, bias)
 
                 # Apply nonlinearity
-                conv1 = tf.nn.relu(conv1, name="relu")
+                self.conv1 = tf.nn.relu(self.conv1bias, name="relu")
 
                 # Maxpooling over the outputs
                 pool1 = tf.nn.max_pool(
-                    conv1,
+                    self.conv1,
                     ksize=[1, pooling_window, 1, 1],
                     strides=[1, pooling_strides, 1, 1],
                     padding='SAME',
                     name="pool")
-                pool1 = tf.transpose(pool1, [0, 1, 3, 2])
+                self.pool1 = tf.transpose(pool1, [0, 1, 3, 2])
+                
+                
 
             with tf.name_scope("conv-layer2"):
                 filters2 = tf.get_variable('filters2', [1,
                                                        n_filters, 
-                                                       pool1.get_shape()[3],
+                                                       self.pool1.get_shape()[3],
                                                        n_filters], 
                                            tf.float32)
 
-
                 conv2 = tf.nn.conv2d(
-                    pool1,
+                    self.pool1,
                     filters2,
                     strides=[1, 1, 1, 1],
                     padding="VALID",
@@ -548,8 +560,8 @@ class WordEmbeddingsEstimatorNC(Estimator):
 
             # Calculate Mean cross-entropy loss
             with tf.name_scope("loss"):
-                losses = tf.nn.softmax_cross_entropy_with_logits(self.scores, self.y) #xent
-                self.loss = tf.reduce_mean(losses)
+                self.losses = tf.nn.softmax_cross_entropy_with_logits(self.scores, self.y) #xent
+                self.loss = tf.reduce_mean(self.losses)
 
             # Accuracy
             with tf.name_scope("accuracy"):
@@ -561,26 +573,6 @@ class WordEmbeddingsEstimatorNC(Estimator):
 
             self.saver = tf.train.Saver()
 
-            # # Adding other features
-            # if self.num_feats:
-            #     self.embedded_words_reshaped = tf.concat(1, [self.embedded_words_reshaped, self.features])
-
-            # # logistic regression
-            # self.predictions, self.loss, self.logits, self.weights, self.bias = self.logistic_regression(self.embedded_words_reshaped, self.y)
-
-            # self.predictions = tf.argmax(self.predictions, 1, name="predictions")
-            
-            # # Accuracy
-            # with tf.name_scope("accuracy"):
-            #     correct_predictions = tf.equal(self.predictions, tf.argmax(self.y, 1))
-            #     self.accuracy = tf.reduce_mean(tf.cast(correct_predictions, "float"), name="accuracy")
-                
-            # # Optimizer.
-            # if self.optimizer_type is not None:
-            #     self.optimizer = self.optimizer_type(self.learning_rate).minimize(self.loss)
-
-            # self.saver = tf.train.Saver()
-
 
     def train(self, X, y, dev_X, dev_y):
         with tf.Session(graph=self.graph) as session:
@@ -589,28 +581,35 @@ class WordEmbeddingsEstimatorNC(Estimator):
 
             for step in xrange(self.epochs):
                 for i in xrange(len(X)):
-                    cfeatures = []
                     embeddings, features = X[i]
-                    #print embeddings
-
+                    
+                    if len(embeddings) < self.max_size:
+                        example = [np.lib.pad(embeddings, (0, self.max_size - len(embeddings)), 'constant', constant_values=0)]
+                    else:
+                        example = [np.array(embeddings[:self.max_size])]
 
                     feed_dict = {
-                        self.X: [embeddings],
+                        self.X: example,
                         self.y: [y[i]]
                     }
+                    
+                    _, loss, accuracy, eee, emb_exp, conv1before, conv1bias, conv1, scores, losses, pool1 = session.run([self.optimizer, self.loss, self.accuracy, self.embedded_words, self.embedded_words_expanded, self.conv1before, self.conv1bias, self.conv1, self.scores, self.losses, self.pool1], feed_dict)
 
-                    if self.num_feats:
-                        feed_dict[self.features] = features
-
-                    # emb, reshaped = session.run([self.embedded_words, self.embedded_words_reshaped], feed_dict)
-                    # print emb.shape, reshaped.shape
-                    # print emb[0][0]
-                    _, loss, accuracy = session.run([self.optimizer, self.loss, self.accuracy], feed_dict)
-
-                    if i % 1000 == 0:                        
+                    if i % 100:
                         print '\tstep', i, 'loss %f' % loss
-                        print '\taccuracy %f' % (accuracy * 100)
-                
+
+                        print example
+                        print y[i]
+                        print '***'
+                        print 'embeddings', eee.shape, eee
+                        print 'embeddings exapanded', emb_exp.shape, emb_exp
+                        print 'conv1 before', conv1before.shape, conv1before
+                        print 'conv1 bias', conv1bias.shape, conv1bias
+                        print 'conv1', conv1.shape, conv1
+                        print 'scores', scores.shape, scores
+                        print 'losses', losses.shape, losses
+                        print 'pool1', pool1.shape, pool1
+                    
                 # validation
                 embeddings_dev = []
                 features_dev = []
@@ -618,12 +617,16 @@ class WordEmbeddingsEstimatorNC(Estimator):
                 
                 for i in xrange(len(dev_X)):
                     emb_dev, feats_dev = dev_X[i]
-                    embeddings_dev += emb_dev
-                    features_dev += feats_dev
-                    labels_dev += list(dev_y[i])
+                    if len(emb_dev) < self.max_size:
+                        example = np.lib.pad(emb_dev, (0, self.max_size - len(emb_dev)), 'constant', constant_values=0)
+                    else:
+                        example = emb_dev[:self.max_size]
+
+                    embeddings_dev.append(example)
+                    labels_dev.append(list(dev_y[i]))
 
                 feed_dict = {
-                    self.X: embeddings_dev,
+                    self.X: np.array(embeddings_dev),
                     self.y: labels_dev
                 }
 
@@ -640,19 +643,25 @@ class WordEmbeddingsEstimatorNC(Estimator):
         cembeddings = []
         cfeatures = []
 
+        import sys
+        print >> sys.stderr, len(X)
+                        
         with tf.Session(graph=self.graph) as session:
             self.load(session)
+            embeddings = []
             for i in xrange(len(X)):
-                embeddings, features = X[i]
-                cembeddings += self.extractWindow(embeddings, self.window_size, [self.word_embeddings.padding])
-                if self.num_feats:
-                    PAD = [-1]*len(features[0])
-                    cfeatures += self.extractWindow(features, self.window_size, [PAD])
+                emb, features = X[i]
+                
+                if len(emb) < self.max_size:
+                    example = np.lib.pad(emb, (0, self.max_size - len(emb)), 'constant', constant_values=0)
+                else:
+                    example = emb[:self.max_size]
+
+                embeddings.append(example)
 
             feed_dict = {
-                self.X: cembeddings
+                self.X: embeddings
             }
-            if self.num_feats:
-                feed_dict[self.features] = cfeatures
+
             y_hat = session.run(self.predictions, feed_dict)
             return y_hat            
