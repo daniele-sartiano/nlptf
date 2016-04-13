@@ -463,13 +463,10 @@ class WordEmbeddingsEstimatorNC(Estimator):
         # Embeddings Layer
         self.X = tf.placeholder(tf.int32, shape=(None, self.max_size), name='trainset_embeddings')
         self.y = tf.placeholder(tf.float32, shape=(None, self.num_labels), name='labels')        
-        self.features = tf.placeholder(tf.float32, shape=(None, self.num_feats*self.batch_size), name='trainset_feats')
 
-        if self.word_embeddings.vectors:
-            self.embeddings = tf.Variable(self.word_embeddings.matrix, name="embedding")
-        else:
-            self.embeddings = tf.Variable(tf.random_uniform([self.word_embeddings.number, self.word_embeddings.size], -1.0, 1.0), name="embedding")
-        
+        self.embeddings = tf.Variable(tf.random_uniform([self.word_embeddings.number, self.word_embeddings.size], -1.0, 1.0), name="embedding")
+
+        self.dropout_keep_prob = tf.placeholder(tf.float32, name="dropout_keep_prob")
 
     def set_model(self):
         # define the graph
@@ -489,20 +486,11 @@ class WordEmbeddingsEstimatorNC(Estimator):
                 n_filters = 64
                 pooling_window = 1
                 pooling_strides = 1
-                pool_size = 5
+                filter_size = 5
 
                 # [filter_height, filter_width, in_channels, out_channels]
-                # filters1 = tf.get_variable('filters1', 
-                #                            [pool_size,
-                #                             self.word_embeddings.size, 
-                #                             self.embedded_words_expanded.get_shape()[-1], 
-                #                             n_filters], 
-                #                            tf.float32)
-
-                # [filter_height, filter_width, in_channels, out_channels]
-                filter_shape = [pool_size, self.word_embeddings.size, 1, n_filters]
+                filter_shape = [filter_size, self.word_embeddings.size, 1, n_filters]
                 filters1 = tf.Variable(tf.truncated_normal(filter_shape, stddev=0.1), name='filters1')
-
 
                 # input --> [batch, in_height, in_width, in_channels]
                 conv1 = tf.nn.conv2d(
@@ -513,50 +501,31 @@ class WordEmbeddingsEstimatorNC(Estimator):
                     name="conv1")
 
                 self.conv1before = conv1
-                #bias1 = tf.get_variable('bias1', [1, 1, 1, n_filters], tf.float32)
                 bias  = tf.Variable(tf.constant(0.1, shape=[n_filters]))
-                #self.conv1bias = conv1 + bias1
                 self.conv1bias = tf.nn.bias_add(conv1, bias)
 
                 # Apply nonlinearity
                 self.conv1 = tf.nn.relu(self.conv1bias, name="relu")
 
                 # Maxpooling over the outputs
-                pool1 = tf.nn.max_pool(
+                self.pool1 = tf.nn.max_pool(
                     self.conv1,
-                    ksize=[1, pooling_window, 1, 1],
-                    strides=[1, pooling_strides, 1, 1],
-                    padding='SAME',
-                    name="pool")
-                self.pool1 = tf.transpose(pool1, [0, 1, 3, 2])
-                
-                
-
-            with tf.name_scope("conv-layer2"):
-                filters2 = tf.get_variable('filters2', [1,
-                                                       n_filters, 
-                                                       self.pool1.get_shape()[3],
-                                                       n_filters], 
-                                           tf.float32)
-
-                conv2 = tf.nn.conv2d(
-                    self.pool1,
-                    filters2,
+                    ksize=[1, self.max_size - filter_size + 1, 1, 1],
                     strides=[1, 1, 1, 1],
-                    padding="VALID",
-                    name="conv2")
-                bias2 = tf.get_variable('bias2', [1, 1, 1, n_filters], tf.float32)
-                conv2 = conv2 + bias2
-                
-                pool2 = tf.squeeze(tf.reduce_max(conv2, 1), squeeze_dims=[1])
+                    padding='VALID',
+                    name="pool")
+
+            self.h_pool = tf.concat(3, [self.pool1])
+            self.h_pool_flat = tf.reshape(self.h_pool, [-1, n_filters])
+            self.h_drop = tf.nn.dropout(self.h_pool_flat, self.dropout_keep_prob)
 
             # Final (unnormalized) scores and predictions
             with tf.name_scope("output"):
-                W = tf.get_variable('W', [pool2.get_shape()[1], self.num_labels])
-                b = tf.get_variable('b', [self.num_labels])
-                self.scores = tf.nn.xw_plus_b(pool2, W, b, name="scores") #logits
-                #self.predictions = tf.argmax(self.scores, 1, name="predictions")
-                self.predictions = tf.argmax(tf.nn.softmax(self.scores), 1, name="predictions")
+                W = tf.get_variable('W', [n_filters, self.num_labels], initializer=tf.contrib.layers.xavier_initializer())
+                #b = tf.get_variable('b', [self.num_labels])
+                b = tf.Variable(tf.constant(0.1, shape=[self.num_labels]), name="b")
+                self.scores = tf.nn.xw_plus_b(self.h_drop, W, b, name="scores") #logits
+                self.predictions = tf.argmax(self.scores, 1, name="predictions")
 
             # Calculate Mean cross-entropy loss
             with tf.name_scope("loss"):
@@ -568,8 +537,13 @@ class WordEmbeddingsEstimatorNC(Estimator):
                 correct_predictions = tf.equal(self.predictions, tf.argmax(self.y, 1))
                 self.accuracy = tf.reduce_mean(tf.cast(correct_predictions, "float"), name="accuracy")
 
-            if self.optimizer_type is not None:
-                self.optimizer = self.optimizer_type(self.learning_rate).minimize(self.loss)
+            # if self.optimizer_type is not None:
+            #     self.optimizer = self.optimizer_type(self.learning_rate).minimize(self.loss)
+
+            global_step = tf.Variable(0, name="global_step", trainable=False) 
+            self.optimizer = tf.train.AdamOptimizer(1e-3)
+            grads_and_vars = self.optimizer.compute_gradients(self.loss)
+            self.train_op = self.optimizer.apply_gradients(grads_and_vars, global_step=global_step)
 
             self.saver = tf.train.Saver()
 
@@ -590,25 +564,26 @@ class WordEmbeddingsEstimatorNC(Estimator):
 
                     feed_dict = {
                         self.X: example,
-                        self.y: [y[i]]
+                        self.y: [y[i]],
+                        self.dropout_keep_prob: 0.5
                     }
                     
-                    _, loss, accuracy, eee, emb_exp, conv1before, conv1bias, conv1, scores, losses, pool1 = session.run([self.optimizer, self.loss, self.accuracy, self.embedded_words, self.embedded_words_expanded, self.conv1before, self.conv1bias, self.conv1, self.scores, self.losses, self.pool1], feed_dict)
+                    _, loss, accuracy, eee, emb_exp, conv1before, conv1bias, conv1, scores, losses, pool1 = session.run([self.train_op, self.loss, self.accuracy, self.embedded_words, self.embedded_words_expanded, self.conv1before, self.conv1bias, self.conv1, self.scores, self.losses, self.pool1], feed_dict)
 
-                    if i % 100:
+                    if i % 100 == 0:
                         print '\tstep', i, 'loss %f' % loss
 
-                        print example
-                        print y[i]
-                        print '***'
-                        print 'embeddings', eee.shape, eee
-                        print 'embeddings exapanded', emb_exp.shape, emb_exp
-                        print 'conv1 before', conv1before.shape, conv1before
-                        print 'conv1 bias', conv1bias.shape, conv1bias
-                        print 'conv1', conv1.shape, conv1
-                        print 'scores', scores.shape, scores
-                        print 'losses', losses.shape, losses
-                        print 'pool1', pool1.shape, pool1
+                        # print example
+                        # print y[i]
+                        # print '***'
+                        # print 'embeddings', eee.shape, eee
+                        # print 'embeddings exapanded', emb_exp.shape, emb_exp
+                        # print 'conv1 before', conv1before.shape, conv1before
+                        # print 'conv1 bias', conv1bias.shape, conv1bias
+                        # print 'conv1', conv1.shape, conv1
+                        # print 'scores', scores.shape, scores
+                        # print 'losses', losses.shape, losses
+                        # print 'pool1', pool1.shape, pool1
                     
                 # validation
                 embeddings_dev = []
@@ -627,7 +602,8 @@ class WordEmbeddingsEstimatorNC(Estimator):
 
                 feed_dict = {
                     self.X: np.array(embeddings_dev),
-                    self.y: labels_dev
+                    self.y: labels_dev,
+                    self.dropout_keep_prob: 0.5
                 }
 
                 if self.num_feats:
