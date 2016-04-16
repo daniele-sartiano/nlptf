@@ -636,7 +636,8 @@ class WordEmbeddingsEstimatorNC(Estimator):
                 embeddings.append(example)
 
             feed_dict = {
-                self.X: embeddings
+                self.X: embeddings,
+                self.dropout_keep_prob: 0.5
             }
 
             y_hat = session.run(self.predictions, feed_dict)
