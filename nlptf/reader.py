@@ -199,7 +199,7 @@ class IOBReader(SentenceReader):
         ]
     }
 
-    def map2idx(examples, labels, extractors, labelExtractor, wordEmbeddings):
+    def map2idx(self, examples, labels, extractors, labelExtractor, wordEmbeddings):
         X = []
         y = []
         for example, listLabels in zip(examples, labels):
