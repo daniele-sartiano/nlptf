@@ -174,6 +174,7 @@ class SentenceReader(TextReader):
         # Mapping Sentence
         X = []
         y = []
+        
         for sentence in sentences:
             tokens_x = []
             tokens_y = []
@@ -187,6 +188,7 @@ class SentenceReader(TextReader):
                 tokens_y.append(token[self.getPosition('LABEL')])
             X.append(tokens_x)
             y.append(tokens_y)
+
         return X, y
 
             
@@ -202,11 +204,14 @@ class IOBReader(SentenceReader):
     def map2idx(self, examples, labels, extractors, labelExtractor, wordEmbeddings):
         X = []
         y = []
-        for example, listLabels in zip(examples, labels):
+        for i, example in enumerate(examples):
             feats = []
             for extractor in extractors:
                 feats.append(extractor.extract(example, self.vocabulary))
-            y.append(labelExtractor.extract(listLabels, self.vocabulary))
+            
+            if labels:
+                y.append(labelExtractor.extract(labels[i], self.vocabulary))
+
             X.append(([wordEmbeddings.w2idx(t[self.getPosition('FORM')]) for t in example], [el for el in zip(*feats)]))
         return X, y
 
