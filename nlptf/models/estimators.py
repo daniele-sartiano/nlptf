@@ -337,7 +337,6 @@ class ConvWordEmbeddingsEstimator(WordEmbeddingsEstimator):
                                                        n_filters], 
                                            tf.float32)
 
-
                 conv2 = tf.nn.conv2d(
                     pool1,
                     filters2,
@@ -439,8 +438,6 @@ class MultiRNNWordEmbeddingsEstimator(RNNWordEmbeddingsEstimator):
                 self.optimizer = self.optimizer_type(self.learning_rate).minimize(self.loss)
 
             self.saver = tf.train.Saver()
-
-
 
 
 class WordEmbeddingsEstimatorNC(Estimator):

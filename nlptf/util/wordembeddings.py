@@ -22,3 +22,4 @@ class WordEmbedding(object):
 
     def w2idx(self, word):
         return self.vocabulary[word] if word in self.vocabulary else self.padding
+

@@ -208,7 +208,7 @@ class IOBReader(SentenceReader):
             feats = []
             for extractor in extractors:
                 feats.append(extractor.extract(example, self.vocabulary))
-            
+                
             if labels:
                 y.append(labelExtractor.extract(labels[i], self.vocabulary))
 

@@ -119,7 +119,6 @@ class WordEmbeddingsClassifier(Classifier):
             'name_model' : self.name_model,
             'word_embeddings' : self.word_embeddings,
             'optimizer' : self.optimizer_type
-
         }
         
         # TODO: check if multi layer rnn
@@ -140,7 +139,6 @@ class WordEmbeddingsClassifier(Classifier):
     def predict(self):
         self.reader.load(pickle.load(open(self.reader_file)))
         examples, _ = self.reader.read()
-        X = []
 
         # if there are not wordembeddings assign the vocabulary to the word embeddings
         if self.word_embeddings is None:
