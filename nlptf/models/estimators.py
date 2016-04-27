@@ -200,6 +200,8 @@ class WordEmbeddingsEstimator(Estimator):
 
 
     def train(self, X, y, dev_X, dev_y):
+
+        BATCH_SIZE = 500
         with tf.Session(graph=self.graph) as session:
 
             session.run(tf.initialize_all_variables())
@@ -209,71 +211,79 @@ class WordEmbeddingsEstimator(Estimator):
                     cfeatures = []
                     embeddings, features = X[i]
                     cembeddings = self.extractWindow(embeddings, self.window_size, [self.word_embeddings.padding])
-
-                    feed_dict = {
-                        self.X: cembeddings,
-                        self.y: y[i]
-                    }
+                    
+                    # splitting in mini batch
+                    cembeddings_batches = [cembeddings[index:index+BATCH_SIZE] for index in range(0, len(cembeddings), BATCH_SIZE)]
+                    y_batches = [y[i][index:index+BATCH_SIZE] for index in range(0, len(y[i]), BATCH_SIZE)]
 
                     if self.num_feats:
                         PAD = [-1]*len(features[0])
                         cfeatures = self.extractWindow(features, self.window_size, [PAD])
-                        feed_dict[self.features] = cfeatures
+                        cfeatures_batches = [cfeatures[index:index+BATCH_SIZE] for index in range(0, len(cfeatures), BATCH_SIZE)]
 
-                    _, loss, accuracy = session.run([self.optimizer, self.loss, self.accuracy], feed_dict)
+                    for index_batch in xrange(len(y_batches)):
+                        
+                        feed_dict = {
+                            self.X: cembeddings_batches[index_batch],
+                            self.y: y_batches[index_batch]
+                        }
+
+                        if self.num_feats:
+                            feed_dict[self.features] = cfeatures_batches[index_batch]
+
+                            _, loss, accuracy = session.run([self.optimizer, self.loss, self.accuracy], feed_dict)
                     
-                    if i % 1000 == 0:                        
+                    if i % 1000 == 0:
                         print '\tstep', i, 'loss %f' % loss
                         print '\taccuracy %f' % (accuracy * 100)
                 
                 # validation
-                cembeddings_dev = []
-                cfeatures_dev = []
-                labels_dev = []
-                
+                loss = 0
+                accuracy = 0
                 for i in xrange(len(dev_X)):
                     embeddings_dev, features_dev = dev_X[i]
-                    cembeddings_dev += self.extractWindow(embeddings_dev, self.window_size, [self.word_embeddings.padding])
+                    cembeddings_dev = self.extractWindow(embeddings_dev, self.window_size, [self.word_embeddings.padding])
                     if self.num_feats:
                         PAD = [-1]*len(features_dev[0])
-                        cfeatures_dev += self.extractWindow(features_dev, self.window_size, [PAD])
+                        cfeatures_dev = self.extractWindow(features_dev, self.window_size, [PAD])
 
-                    labels_dev += list(dev_y[i])
+                    labels_dev = list(dev_y[i])
 
-                feed_dict = {
-                    self.X: cembeddings_dev,
-                    self.y: labels_dev
-                }
+                    feed_dict = {
+                        self.X: cembeddings_dev,
+                        self.y: labels_dev
+                    }
 
-                if self.num_feats:
-                    feed_dict[self.features] = cfeatures_dev
+                    if self.num_feats:
+                        feed_dict[self.features] = cfeatures_dev
 
-                loss, accuracy = session.run([self.loss, self.accuracy], feed_dict)
+                    l, a = session.run([self.loss, self.accuracy], feed_dict)
+                    loss += l
+                    accuracy += a
                 print 'Epoch %s' % step, 'loss', loss, 'accuracy', (accuracy * 100)
+                print 'Epoch %s' % (step/len(dev_X)), 'loss', (loss/len(dev_X)), 'accuracy', ((accuracy/len(dev_X)) * 100)
                     
             return self.save(session)
 
 
     def predict(self, X):
-        cembeddings = []
-        cfeatures = []
-
+        y_hat = []
         with tf.Session(graph=self.graph) as session:
             self.load(session)
             for i in xrange(len(X)):
                 embeddings, features = X[i]
-                cembeddings += self.extractWindow(embeddings, self.window_size, [self.word_embeddings.padding])
+                cembeddings = self.extractWindow(embeddings, self.window_size, [self.word_embeddings.padding])
                 if self.num_feats:
                     PAD = [-1]*len(features[0])
-                    cfeatures += self.extractWindow(features, self.window_size, [PAD])
+                    cfeatures = self.extractWindow(features, self.window_size, [PAD])
 
-            feed_dict = {
-                self.X: cembeddings
-            }
-            if self.num_feats:
-                feed_dict[self.features] = cfeatures
-            y_hat = session.run(self.predictions, feed_dict)
-            return y_hat            
+                feed_dict = {
+                    self.X: cembeddings
+                }
+                if self.num_feats:
+                    feed_dict[self.features] = cfeatures
+                y_hat.extend(session.run(self.predictions, feed_dict))
+            return y_hat
 
 
 class ConvWordEmbeddingsEstimator(WordEmbeddingsEstimator):
