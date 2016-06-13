@@ -461,7 +461,7 @@ class WordEmbeddingsEstimatorNC(Estimator):
         self.name_model = name_model
         self.word_embeddings = word_embeddings
         self.optimizer_type = optimizer
-        self.max_size = 5000
+        self.max_size = 10000
         self.set_model()
 
     def init_vars(self):
