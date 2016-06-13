@@ -462,9 +462,7 @@ class WordEmbeddingsEstimatorNC(Estimator):
         self.word_embeddings = word_embeddings
         self.optimizer_type = optimizer
         self.max_size = 5000
-
         self.set_model()
-
 
     def init_vars(self):
         # Embeddings Layer
@@ -591,47 +589,40 @@ class WordEmbeddingsEstimatorNC(Estimator):
                         # print 'scores', scores.shape, scores
                         # print 'losses', losses.shape, losses
                         # print 'pool1', pool1.shape, pool1
-                    
-                # validation
-                embeddings_dev = []
-                features_dev = []
-                labels_dev = []
                 
+
+                loss = 0
+                accuracy = 0
                 for i in xrange(len(dev_X)):
                     emb_dev, feats_dev = dev_X[i]
                     if len(emb_dev) < self.max_size:
                         example = np.lib.pad(emb_dev, (0, self.max_size - len(emb_dev)), 'constant', constant_values=0)
                     else:
-                        example = emb_dev[:self.max_size]
-
-                    embeddings_dev.append(example)
-                    labels_dev.append(list(dev_y[i]))
-
-                feed_dict = {
-                    self.X: np.array(embeddings_dev),
-                    self.y: labels_dev,
-                    self.dropout_keep_prob: 0.5
-                }
-
-                if self.num_feats:
-                    feed_dict[self.features] = features_dev
-
-                loss, accuracy = session.run([self.loss, self.accuracy], feed_dict)
-                print 'Epoch %s' % step, 'loss', loss, 'accuracy', (accuracy * 100)
+                        example = np.array(emb_dev[:self.max_size])
                     
+                    feed_dict = {
+                        self.X: [example],
+                        self.y: [dev_y[i]],
+                        self.dropout_keep_prob: 0.5
+                    }
+
+                    l, a = session.run([self.loss, self.accuracy], feed_dict)
+                    loss += l
+                    accuracy += a
+
+                print 'Epoch %s' % step, 'loss', (loss/len(dev_X)), 'accuracy', ((accuracy/len(dev_X)) * 100)
+
             return self.save(session)
 
 
     def predict(self, X):
-        cembeddings = []
-        cfeatures = []
 
         import sys
         print >> sys.stderr, len(X)
                         
         with tf.Session(graph=self.graph) as session:
             self.load(session)
-            embeddings = []
+            y_hats = []
             for i in xrange(len(X)):
                 emb, features = X[i]
                 
@@ -640,12 +631,11 @@ class WordEmbeddingsEstimatorNC(Estimator):
                 else:
                     example = emb[:self.max_size]
 
-                embeddings.append(example)
+                feed_dict = {
+                    self.X: [example],
+                    self.dropout_keep_prob: 0.5
+                }
 
-            feed_dict = {
-                self.X: embeddings,
-                self.dropout_keep_prob: 0.5
-            }
-
-            y_hat = session.run(self.predictions, feed_dict)
-            return y_hat            
+                y_hat = session.run(self.predictions, feed_dict)
+                y_hats.extend(y_hat)
+            return y_hats
