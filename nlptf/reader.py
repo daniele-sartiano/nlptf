@@ -7,6 +7,8 @@ from collections import Counter
 
 from util.wordembeddings import WordEmbedding
 
+import sys # DEBUG
+
 class Reader(object):
     """
     Abstract class for readers.
@@ -114,13 +116,12 @@ class LineReader(TextReader):
         # Mapping Examples
         X = []
         y = []
-        
+
         for example in examples:
             v = {}
             for field in self.format['fields']:
                 if field['name'] != 'LABEL':
-                    v[field['position']] = example[field['position']]
-
+                    v[field['position']] = example[field['position']].split(' ')
             X.append(v)
             y.append(example[self.getPosition('LABEL')])
         return X, y
