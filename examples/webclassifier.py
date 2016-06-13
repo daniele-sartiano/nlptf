@@ -14,6 +14,8 @@ from nlptf.classifier.classifier import WordEmbeddingsClassifier
 
 import tensorflow as tf
 
+from sklearn.metrics import f1_score
+
 ESTIMATORS = {
     'conv': WordEmbeddingsEstimatorNC,
 }
@@ -42,6 +44,11 @@ def main():
     parser_collect_data.add_argument('-d', '--directory', help='directory', type=str, required=True)
     parser_collect_data.add_argument('-i', '--input-file', help='input file', type=str, required=False)
 
+    parser_score = subparsers.add_parser('score')
+    parser_score.set_defaults(which='score')
+    parser_score.add_argument('-p', '--predicted', help='predicted file', type=str, required=True)
+    parser_score.add_argument('-g', '--gold', help='gold file', type=str, required=True)
+
     # common arguments
     for p in (parser_train, parser_tag):
         p.add_argument('-m', '--model', help='model-file', type=str, required=True)
@@ -55,7 +62,10 @@ def main():
         
 
     args = parser.parse_args()
-    infile = open(args.input_file) if args.input_file is not None else sys.stdin
+    try:
+        infile = open(args.input_file) if args.input_file is not None else sys.stdin
+    except:
+        pass
 
     if args.which == 'collect':
         with infile as f:
@@ -118,6 +128,23 @@ def main():
                 i += 1
             else:
                 print
+    elif args.which == 'score':
+        gold_dict = {}
+        for line in open(args.gold):
+            domain, label = line.strip().split('\t')[:2]
+            gold_dict[domain] = label
+        
+        y_true = []
+        y_pred = []
+        for line in open(args.predicted):
+            domain, label = line.strip().split('\t')[:2]
+            y_pred.append(int(label))
+            y_true.append(int(gold_dict[domain]))
+
+        print f1_score(y_true, y_pred, average='macro') 
+            
+        
+
 
 if __name__ == '__main__':
     main()
