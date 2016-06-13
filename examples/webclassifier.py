@@ -15,10 +15,7 @@ from nlptf.classifier.classifier import WordEmbeddingsClassifier
 import tensorflow as tf
 
 ESTIMATORS = {
-    'linear': WordEmbeddingsEstimatorNC,
-    'conv': ConvWordEmbeddingsEstimator,
-    'rnn': RNNWordEmbeddingsEstimator,
-    'multirnn': MultiRNNWordEmbeddingsEstimator
+    'conv': WordEmbeddingsEstimatorNC,
 }
 
 OPTIMIZERS = {
@@ -110,7 +107,7 @@ def main():
 
         predicted = classifier.predict()
 
-        print >> sys.stderr, len(predicted), len(lines)
+        print >> sys.stderr, 'l predicted', len(predicted), 'l lines', len(lines)
         labels_idx_rev = {v:k for k,v in reader.vocabulary[reader.getPosition('LABEL')].items()}
 
         i = 0
@@ -121,9 +118,6 @@ def main():
                 i += 1
             else:
                 print
-
-
-        
 
 if __name__ == '__main__':
     main()
