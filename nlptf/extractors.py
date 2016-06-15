@@ -47,12 +47,27 @@ class CapitalExtractor(FieldExtractor):
 
 
 class LabelExtractor(FieldExtractor):
+
+    def __init__(self, field, one_hot=True):
+         super(LabelExtractor, self).__init__(field)
+         self.one_hot = one_hot
+         self.vocabulary = None
+
     def extract(self, labels, vocabulary):
-        vocabulary = vocabulary[self.field]
+        self.vocabulary = vocabulary[self.field]
+
         if isinstance(labels, list):
             ret = []
             for label in labels:
-                ret.append((np.arange(len(vocabulary)) == vocabulary[label]).astype(np.float32))
+                if self.one_hot:
+                    l = (np.arange(len(self.vocabulary)) == self.vocabulary[label]).astype(np.float32)
+                else:
+                    l = self.vocabulary[label]
+                ret.append(l)
         else:
-            ret = (np.arange(len(vocabulary)) == vocabulary[labels]).astype(np.float32)
+            if self.one_hot:
+                ret = (np.arange(len(self.vocabulary)) == self.vocabulary[labels]).astype(np.float32)
+            else:
+                ret = self.vocabulary[labels]
+                
         return ret
