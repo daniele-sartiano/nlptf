@@ -2,8 +2,6 @@
 
 import tensorflow as tf
 import numpy as np
-from tensorflow.models.rnn import rnn, rnn_cell
-
 
 class Estimator(object):
 
@@ -397,8 +395,8 @@ class RNNWordEmbeddingsEstimator(WordEmbeddingsEstimator):
             self.embedded_words = tf.nn.embedding_lookup(self.embeddings, self.X)
 
             word_list =  [tf.squeeze(t, squeeze_dims=[1]) for t in tf.split(1, self.window_size, self.embedded_words)]
-            cell = rnn_cell.GRUCell(self.word_embeddings.size)
-            _, encoding = rnn.rnn(cell, word_list, dtype=tf.float32)
+            cell = tf.nn.rnn_cell.GRUCell(self.word_embeddings.size)
+            _, encoding = tf.nn.rnn.rnn(cell, word_list, dtype=tf.float32)
 
             self.predictions, self.loss, self.logits, self.weights, self.bias = self.logistic_regression(encoding, self.y)
             self.predictions = tf.argmax(self.predictions, 1)
@@ -432,7 +430,7 @@ class MultiRNNWordEmbeddingsEstimator(RNNWordEmbeddingsEstimator):
             self.embedded_words = tf.nn.embedding_lookup(self.embeddings, self.X)
 
             word_list =  [tf.squeeze(t, squeeze_dims=[1]) for t in tf.split(1, self.window_size, self.embedded_words)]
-            grucell = rnn_cell.GRUCell(self.word_embeddings.size)
+            grucell = tf.nn.rnn_cell.GRUCell(self.word_embeddings.size)
             cell = tf.nn.rnn_cell.MultiRNNCell([grucell] * self.num_layers)
             _, encoding = tf.nn.rnn(cell, word_list, dtype=tf.float32)
 
@@ -457,11 +455,11 @@ class WordEmbeddingsEstimatorNC(Estimator):
         self.num_feats = num_feats
         self.num_labels = num_labels
         self.learning_rate = learning_rate
-        self.batch_size = 1
+        self.batch_size = 10
         self.name_model = name_model
         self.word_embeddings = word_embeddings
         self.optimizer_type = optimizer
-        self.max_size = 10000
+        self.max_size = 20000
         self.set_model()
 
     def init_vars(self):
