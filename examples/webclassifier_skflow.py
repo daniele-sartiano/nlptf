@@ -88,7 +88,7 @@ def main():
                     print '%s\t%s\t%s' % (domain, categories, words)
     elif args.which == 'train':        
         
-        max_size = 50000
+        max_size = 500000
         word_embeddings = Word2VecReader(open(args.word_embeddings)).read()
 
         reader = WebContentReader(infile, separator='\t')
@@ -108,9 +108,18 @@ def main():
         X = np.array(_X)
         y = np.array(y)
 
+        d = {}
+        for yy in y:
+            try:
+                d[yy] += 1
+            except:
+                d[yy] = 1
+        print d
+
         X = preprocessing.StandardScaler().fit_transform(X)
         
-        classifier = skflow.TensorFlowDNNClassifier(hidden_units=[100, 200, 100], n_classes=len(label_extractor.vocabulary))
+        classifier = skflow.TensorFlowDNNClassifier(hidden_units=[100, 200, 150, 100], n_classes=len(label_extractor.vocabulary))
+
 
         #classifier = skflow.TensorFlowLinearRegressor()
 
@@ -119,8 +128,9 @@ def main():
 
         
         #### test
-
-        reader = WebContentReader(open('data/fine-it-test'), separator='\t')
+        lines = open('data/fine-it-test').readlines()
+        
+        reader = WebContentReader(lines, separator='\t')
         examples, labels = reader.read()
 
         label_extractor = LabelExtractor(reader.getPosition('LABEL'), one_hot=False)
@@ -137,7 +147,23 @@ def main():
         X = np.array(_X)
         y = np.array(y)
 
-        score = metrics.accuracy_score(y, classifier.predict(X))
+
+        predicted = classifier.predict(X)
+        score = metrics.accuracy_score(y, predicted)
+
+
+        labels_idx_rev = {v:k for k,v in reader.vocabulary[reader.getPosition('LABEL')].items()}
+        i = 0
+        for line in lines:
+            line = line.strip()
+            if line:
+                print '%s\t%s' % (line.split()[0], labels_idx_rev[predicted[i]])
+                i += 1
+            else:
+                print
+
+
+
         print("Accuracy: %f" % score)
 
     elif args.which == 'tag':
